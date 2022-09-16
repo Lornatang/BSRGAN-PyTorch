@@ -23,7 +23,8 @@ from torch.optim.swa_utils import AveragedModel
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import lsrgan_config
+from imgproc import random_crop
+import bsrgan_config
 import model
 from dataset import CUDAPrefetcher, TrainValidImageDataset, TestImageDataset
 from image_quality_assessment import PSNR, SSIM
@@ -46,7 +47,7 @@ def main():
     print("Load all datasets successfully.")
 
     d_model, g_model, ema_g_model = build_model()
-    print(f"Build `{lsrgan_config.g_arch_name}` model successfully.")
+    print(f"Build `{bsrgan_config.g_arch_name}` model successfully.")
 
     pixel_criterion, content_criterion, adversarial_criterion = define_loss()
     print("Define all loss functions successfully.")
@@ -58,24 +59,24 @@ def main():
     print("Define all optimizer scheduler functions successfully.")
 
     print("Check whether to load pretrained d model weights...")
-    if lsrgan_config.pretrained_d_model_weights_path:
-        d_model = load_state_dict(d_model, lsrgan_config.pretrained_d_model_weights_path)
-        print(f"Loaded `{lsrgan_config.pretrained_d_model_weights_path}` pretrained model weights successfully.")
+    if bsrgan_config.pretrained_d_model_weights_path:
+        d_model = load_state_dict(d_model, bsrgan_config.pretrained_d_model_weights_path)
+        print(f"Loaded `{bsrgan_config.pretrained_d_model_weights_path}` pretrained model weights successfully.")
     else:
         print("Pretrained d model weights not found.")
 
     print("Check whether to load pretrained g model weights...")
-    if lsrgan_config.pretrained_g_model_weights_path:
-        g_model = load_state_dict(g_model, lsrgan_config.pretrained_g_model_weights_path)
-        print(f"Loaded `{lsrgan_config.pretrained_g_model_weights_path}` pretrained model weights successfully.")
+    if bsrgan_config.pretrained_g_model_weights_path:
+        g_model = load_state_dict(g_model, bsrgan_config.pretrained_g_model_weights_path)
+        print(f"Loaded `{bsrgan_config.pretrained_g_model_weights_path}` pretrained model weights successfully.")
     else:
         print("Pretrained g model weights not found.")
 
     print("Check whether the pretrained d model is restored...")
-    if lsrgan_config.resume_d:
+    if bsrgan_config.resume_d:
         lsrresnet_model, ema_lsrresnet_model, start_epoch, est_psnr, best_ssim, optimizer, scheduler = load_state_dict(
             d_model,
-            lsrgan_config.pretrained_d_model_weights_path,
+            bsrgan_config.pretrained_d_model_weights_path,
             optimizer=d_optimizer,
             scheduler=d_scheduler,
             load_mode="resume")
@@ -84,10 +85,10 @@ def main():
         print("Resume training d model not found. Start training from scratch.")
 
     print("Check whether the pretrained g model is restored...")
-    if lsrgan_config.resume_g:
+    if bsrgan_config.resume_g:
         lsrresnet_model, ema_lsrresnet_model, start_epoch, est_psnr, best_ssim, optimizer, scheduler = load_state_dict(
             g_model,
-            lsrgan_config.pretrained_g_model_weights_path,
+            bsrgan_config.pretrained_g_model_weights_path,
             ema_model=ema_g_model,
             optimizer=g_optimizer,
             scheduler=g_scheduler,
@@ -97,26 +98,26 @@ def main():
         print("Resume training g model not found. Start training from scratch.")
 
     # Create a experiment results
-    samples_dir = os.path.join("samples", lsrgan_config.exp_name)
-    results_dir = os.path.join("results", lsrgan_config.exp_name)
+    samples_dir = os.path.join("samples", bsrgan_config.exp_name)
+    results_dir = os.path.join("results", bsrgan_config.exp_name)
     make_directory(samples_dir)
     make_directory(results_dir)
 
     # Create training process log file
-    writer = SummaryWriter(os.path.join("samples", "logs", lsrgan_config.exp_name))
+    writer = SummaryWriter(os.path.join("samples", "logs", bsrgan_config.exp_name))
 
     # Initialize the gradient scaler
     scaler = amp.GradScaler()
 
     # Create an IQA evaluation model
-    psnr_model = PSNR(lsrgan_config.upscale_factor, lsrgan_config.only_test_y_channel)
-    ssim_model = SSIM(lsrgan_config.upscale_factor, lsrgan_config.only_test_y_channel)
+    psnr_model = PSNR(bsrgan_config.upscale_factor, bsrgan_config.only_test_y_channel)
+    ssim_model = SSIM(bsrgan_config.upscale_factor, bsrgan_config.only_test_y_channel)
 
     # Transfer the IQA model to the specified device
-    psnr_model = psnr_model.to(device=lsrgan_config.device)
-    ssim_model = ssim_model.to(device=lsrgan_config.device)
+    psnr_model = psnr_model.to(device=bsrgan_config.device)
+    ssim_model = ssim_model.to(device=bsrgan_config.device)
 
-    for epoch in range(start_epoch, lsrgan_config.epochs):
+    for epoch in range(start_epoch, bsrgan_config.epochs):
         train(d_model,
               g_model,
               ema_g_model,
@@ -144,7 +145,7 @@ def main():
 
         # Automatically save the model with the highest index
         is_best = psnr > best_psnr and ssim > best_ssim
-        is_last = (epoch + 1) == lsrgan_config.epochs
+        is_last = (epoch + 1) == bsrgan_config.epochs
         best_psnr = max(psnr, best_psnr)
         best_ssim = max(ssim, best_ssim)
         save_checkpoint({"epoch": epoch + 1,
@@ -174,17 +175,18 @@ def main():
 
 def load_dataset() -> [CUDAPrefetcher, CUDAPrefetcher]:
     # Load train, test and valid datasets
-    train_datasets = TrainValidImageDataset(lsrgan_config.train_gt_images_dir,
-                                            lsrgan_config.gt_image_size,
-                                            lsrgan_config.upscale_factor,
-                                            "Train")
-    test_datasets = TestImageDataset(lsrgan_config.test_gt_images_dir, lsrgan_config.test_lr_images_dir)
+    train_datasets = TrainValidImageDataset(bsrgan_config.train_gt_images_dir,
+                                            bsrgan_config.crop_image_size,
+                                            bsrgan_config.upscale_factor,
+                                            "Train",
+                                            bsrgan_config.degradation_process_parameters_dict)
+    test_datasets = TestImageDataset(bsrgan_config.test_gt_images_dir, bsrgan_config.test_lr_images_dir)
 
     # Generator all dataloader
     train_dataloader = DataLoader(train_datasets,
-                                  batch_size=lsrgan_config.batch_size,
+                                  batch_size=bsrgan_config.batch_size,
                                   shuffle=True,
-                                  num_workers=lsrgan_config.num_workers,
+                                  num_workers=bsrgan_config.num_workers,
                                   pin_memory=True,
                                   drop_last=True,
                                   persistent_workers=True)
@@ -197,24 +199,24 @@ def load_dataset() -> [CUDAPrefetcher, CUDAPrefetcher]:
                                  persistent_workers=True)
 
     # Place all data on the preprocessing data loader
-    train_prefetcher = CUDAPrefetcher(train_dataloader, lsrgan_config.device)
-    test_prefetcher = CUDAPrefetcher(test_dataloader, lsrgan_config.device)
+    train_prefetcher = CUDAPrefetcher(train_dataloader, bsrgan_config.device)
+    test_prefetcher = CUDAPrefetcher(test_dataloader, bsrgan_config.device)
 
     return train_prefetcher, test_prefetcher
 
 
 def build_model() -> [nn.Module, nn.Module, nn.Module]:
-    d_model = model.__dict__[lsrgan_config.d_arch_name]()
-    g_model = model.__dict__[lsrgan_config.g_arch_name](in_channels=lsrgan_config.in_channels,
-                                                        out_channels=lsrgan_config.out_channels,
-                                                        channels=lsrgan_config.channels,
-                                                        growth_channels=lsrgan_config.growth_channels,
-                                                        num_blocks=lsrgan_config.num_blocks)
-    d_model = d_model.to(device=lsrgan_config.device)
-    g_model = g_model.to(device=lsrgan_config.device)
+    d_model = model.__dict__[bsrgan_config.d_arch_name]()
+    g_model = model.__dict__[bsrgan_config.g_arch_name](in_channels=bsrgan_config.in_channels,
+                                                        out_channels=bsrgan_config.out_channels,
+                                                        channels=bsrgan_config.channels,
+                                                        growth_channels=bsrgan_config.growth_channels,
+                                                        num_blocks=bsrgan_config.num_blocks)
+    d_model = d_model.to(device=bsrgan_config.device)
+    g_model = g_model.to(device=bsrgan_config.device)
 
     # Create an Exponential Moving Average Model
-    ema_avg = lambda averaged_model_parameter, model_parameter, num_averaged: (1 - lsrgan_config.model_ema_decay) * averaged_model_parameter + lsrgan_config.model_ema_decay * model_parameter
+    ema_avg = lambda averaged_model_parameter, model_parameter, num_averaged: (1 - bsrgan_config.model_ema_decay) * averaged_model_parameter + bsrgan_config.model_ema_decay * model_parameter
     ema_g_model = AveragedModel(g_model, avg_fn=ema_avg)
 
     return d_model, g_model, ema_g_model
@@ -222,28 +224,31 @@ def build_model() -> [nn.Module, nn.Module, nn.Module]:
 
 def define_loss() -> [nn.L1Loss, model.content_loss, nn.BCEWithLogitsLoss]:
     pixel_criterion = nn.L1Loss()
-    content_criterion = model.content_loss(lsrgan_config.feature_model_extractor_node,
-                                           lsrgan_config.feature_model_normalize_mean,
-                                           lsrgan_config.feature_model_normalize_std)
+    content_criterion = model.content_loss(bsrgan_config.feature_model_extractor_nodes,
+                                           bsrgan_config.feature_model_normalize_mean,
+                                           bsrgan_config.feature_model_normalize_std)
     adversarial_criterion = nn.BCEWithLogitsLoss()
 
     # Transfer to CUDA
-    pixel_criterion = pixel_criterion.to(device=lsrgan_config.device)
-    content_criterion = content_criterion.to(device=lsrgan_config.device)
-    adversarial_criterion = adversarial_criterion.to(device=lsrgan_config.device)
+    pixel_criterion = pixel_criterion.to(device=bsrgan_config.device)
+    content_criterion = content_criterion.to(device=bsrgan_config.device)
+    adversarial_criterion = adversarial_criterion.to(device=bsrgan_config.device)
 
     return pixel_criterion, content_criterion, adversarial_criterion
 
 
 def define_optimizer(d_model, g_model) -> [optim.Adam, optim.Adam]:
     d_optimizer = optim.Adam(d_model.parameters(),
-                             lsrgan_config.model_lr,
-                             lsrgan_config.model_betas,
-                             lsrgan_config.model_eps)
+                             bsrgan_config.model_lr,
+                             bsrgan_config.model_betas,
+                             bsrgan_config.model_eps,
+                             bsrgan_config.model_weight_decay)
     g_optimizer = optim.Adam(g_model.parameters(),
-                             lsrgan_config.model_lr,
-                             lsrgan_config.model_betas,
-                             lsrgan_config.model_eps)
+                             bsrgan_config.model_lr,
+                             bsrgan_config.model_betas,
+                             bsrgan_config.model_eps,
+                             bsrgan_config.model_weight_decay)
+
     return d_optimizer, g_optimizer
 
 
@@ -252,11 +257,11 @@ def define_scheduler(
         g_optimizer: optim.Adam
 ) -> [lr_scheduler.MultiStepLR, lr_scheduler.MultiStepLR]:
     d_scheduler = lr_scheduler.MultiStepLR(d_optimizer,
-                                           lsrgan_config.lr_scheduler_milestones,
-                                           lsrgan_config.lr_scheduler_gamma)
+                                           bsrgan_config.lr_scheduler_milestones,
+                                           bsrgan_config.lr_scheduler_gamma)
     g_scheduler = lr_scheduler.MultiStepLR(g_optimizer,
-                                           lsrgan_config.lr_scheduler_milestones,
-                                           lsrgan_config.lr_scheduler_gamma)
+                                           bsrgan_config.lr_scheduler_milestones,
+                                           bsrgan_config.lr_scheduler_gamma)
     return d_scheduler, g_scheduler
 
 
@@ -282,12 +287,12 @@ def train(
     pixel_losses = AverageMeter("Pixel loss", ":6.6f")
     content_losses = AverageMeter("Content loss", ":6.6f")
     adversarial_losses = AverageMeter("Adversarial loss", ":6.6f")
-    d_hr_probabilities = AverageMeter("D(HR)", ":6.3f")
+    d_gt_probabilities = AverageMeter("D(GT)", ":6.3f")
     d_sr_probabilities = AverageMeter("D(SR)", ":6.3f")
     progress = ProgressMeter(batches,
                              [batch_time, data_time,
                               pixel_losses, content_losses, adversarial_losses,
-                              d_hr_probabilities, d_sr_probabilities],
+                              d_gt_probabilities, d_sr_probabilities],
                              prefix=f"Epoch: [{epoch + 1}]")
 
     # Put the generative network model in training mode
@@ -309,12 +314,15 @@ def train(
         data_time.update(time.time() - end)
 
         # Transfer in-memory data to CUDA devices to speed up training
-        gt = batch_data["gt"].to(device=lsrgan_config.device, non_blocking=True)
-        lr = batch_data["lr"].to(device=lsrgan_config.device, non_blocking=True)
+        gt = batch_data["gt"].to(device=bsrgan_config.device, non_blocking=True)
+        lr = batch_data["lr"].to(device=bsrgan_config.device, non_blocking=True)
+
+        # Crop image patch
+        gt, lr = random_crop(gt, lr, bsrgan_config.gt_image_size, bsrgan_config.upscale_factor)
 
         # Set the real sample label to 1, and the false sample label to 0
-        real_label = torch.full([gt.size(0), 1], 1.0, dtype=gt.dtype, device=lsrgan_config.device)
-        fake_label = torch.full([gt.size(0), 1], 0.0, dtype=gt.dtype, device=lsrgan_config.device)
+        real_label = torch.full([gt.size(0), 1], 1.0, dtype=gt.dtype, device=bsrgan_config.device)
+        fake_label = torch.full([gt.size(0), 1], 0.0, dtype=gt.dtype, device=bsrgan_config.device)
 
         # Start training the discriminator model
         # During discriminator model training, enable discriminator model backpropagation
@@ -326,19 +334,18 @@ def train(
 
         # Calculate the classification score of the discriminator model for real samples
         with amp.autocast():
-            # Use the generator model to generate fake samples
-            sr = g_model(lr)
-            hr_output = d_model(gt)
-            sr_output = d_model(sr.detach().clone())
-            d_loss_hr = adversarial_criterion(hr_output - torch.mean(sr_output), real_label) * 0.5
+            gt_output = d_model(gt)
+            d_loss_hr = adversarial_criterion(gt_output, real_label)
         # Call the gradient scaling function in the mixed precision API to
         # back-propagate the gradient information of the fake samples
         scaler.scale(d_loss_hr).backward(retain_graph=True)
 
         # Calculate the classification score of the discriminator model for fake samples
         with amp.autocast():
+            # Use the generator model to generate fake samples
+            sr = g_model(lr)
             sr_output = d_model(sr.detach().clone())
-            d_loss_sr = adversarial_criterion(sr_output - torch.mean(hr_output), fake_label) * 0.5
+            d_loss_sr = adversarial_criterion(sr_output, fake_label)
         # Call the gradient scaling function in the mixed precision API
         # to back-propagate the gradient information of the fake samples
         scaler.scale(d_loss_sr).backward()
@@ -361,15 +368,10 @@ def train(
 
         # Calculate the perceptual loss of the generator, mainly including pixel loss, feature loss and adversarial loss
         with amp.autocast():
-            # Output discriminator to discriminate object probability
-            hr_output = d_model(gt.detach().clone())
-            sr_output = d_model(sr)
-            pixel_loss = lsrgan_config.pixel_weight * pixel_criterion(sr, gt)
-            content_loss = lsrgan_config.content_weight * content_criterion(sr, gt)
-            # Computational adversarial network loss
-            d_loss_hr = adversarial_criterion(hr_output - torch.mean(sr_output), real_label) * 0.5
-            d_loss_sr = adversarial_criterion(sr_output - torch.mean(hr_output), fake_label) * 0.5
-            adversarial_loss = lsrgan_config.adversarial_weight * (d_loss_hr + d_loss_sr)
+            pixel_loss = bsrgan_config.pixel_weight * pixel_criterion(sr, gt)
+            content_loss = torch.sum(torch.mul(torch.Tensor(bsrgan_config.content_weight),
+                                               torch.Tensor(content_criterion(sr, gt))))
+            adversarial_loss = bsrgan_config.adversarial_weight * adversarial_criterion(sr, real_label)
             # Calculate the generator total loss value
             g_loss = pixel_loss + content_loss + adversarial_loss
         # Call the gradient scaling function in the mixed precision API to
@@ -386,14 +388,14 @@ def train(
 
         # Calculate the score of the discriminator on real samples and fake samples,
         # the score of real samples is close to 1, and the score of fake samples is close to 0
-        d_hr_probability = torch.sigmoid_(torch.mean(hr_output.detach()))
+        d_gt_probability = torch.sigmoid_(torch.mean(gt_output.detach()))
         d_sr_probability = torch.sigmoid_(torch.mean(sr_output.detach()))
 
         # Statistical accuracy and loss value for terminal data output
         pixel_losses.update(pixel_loss.item(), lr.size(0))
         content_losses.update(content_loss.item(), lr.size(0))
         adversarial_losses.update(adversarial_loss.item(), lr.size(0))
-        d_hr_probabilities.update(d_hr_probability.item(), lr.size(0))
+        d_gt_probabilities.update(d_gt_probability.item(), lr.size(0))
         d_sr_probabilities.update(d_sr_probability.item(), lr.size(0))
 
         # Calculate the time it takes to fully train a batch of data
@@ -401,14 +403,14 @@ def train(
         end = time.time()
 
         # Write the data during training to the training log file
-        if batch_index % lsrgan_config.train_print_frequency == 0:
+        if batch_index % bsrgan_config.train_print_frequency == 0:
             iters = batch_index + epoch * batches + 1
             writer.add_scalar("Train/D_Loss", d_loss.item(), iters)
             writer.add_scalar("Train/G_Loss", g_loss.item(), iters)
             writer.add_scalar("Train/Pixel_Loss", pixel_loss.item(), iters)
             writer.add_scalar("Train/Content_Loss", content_loss.item(), iters)
             writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
-            writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
+            writer.add_scalar("Train/D(GT)_Probability", d_gt_probability.item(), iters)
             writer.add_scalar("Train/D(SR)_Probability", d_sr_probability.item(), iters)
             progress.display(batch_index + 1)
 
@@ -451,8 +453,8 @@ def validate(
     with torch.no_grad():
         while batch_data is not None:
             # Transfer the in-memory data to the CUDA device to speed up the test
-            gt = batch_data["gt"].to(device=lsrgan_config.device, non_blocking=True)
-            lr = batch_data["lr"].to(device=lsrgan_config.device, non_blocking=True)
+            gt = batch_data["gt"].to(device=bsrgan_config.device, non_blocking=True)
+            lr = batch_data["lr"].to(device=bsrgan_config.device, non_blocking=True)
 
             # Use the generator model to generate a fake sample
             with amp.autocast():
@@ -469,7 +471,7 @@ def validate(
             end = time.time()
 
             # Record training log information
-            if batch_index % lsrgan_config.valid_print_frequency == 0:
+            if batch_index % bsrgan_config.valid_print_frequency == 0:
                 progress.display(batch_index + 1)
 
             # Preload the next batch of data
