@@ -37,8 +37,8 @@ Contains DIV2K, DIV8K, Flickr2K, OST, T91, Set5, Set14, BSDS100 and BSDS200, etc
 ## Step3: Preprocess the train dataset
 
 ```bash
-cd <LSRGAN-PyTorch-main>/scripts
-python run.py
+cd <BSRGAN-PyTorch-main>/scripts
+python3 run.py
 ```
 
 ## Step4: Check that the final dataset directory schema is completely correct
