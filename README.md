@@ -90,7 +90,7 @@ modify the `lsrgan_config.py`
 - line 58: `pretrained_g_model_weights_path` change to `./results/pretrained_models/LSRGAN_x4-DIV2K-e19a5cef.pth.tar`.
 
 ```bash
-python3 train_lsrgan.py
+python3 train_bsrgan.py
 ```
 
 ### Resume train LSRGAN model
@@ -105,7 +105,7 @@ modify the `lsrgan_config.py`
 
 
 ```bash
-python3 train_lsrgan.py
+python3 train_bsrgan.py
 ```
 
 ## Result
