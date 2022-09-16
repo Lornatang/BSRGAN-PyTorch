@@ -248,6 +248,10 @@ def train(
         gt = batch_data["gt"].to(device=bsrnet_config.device, non_blocking=True)
         lr = batch_data["lr"].to(device=bsrnet_config.device, non_blocking=True)
 
+        # Clamp and round
+        gt = torch.clamp((gt * 255.0).round(), 0, 255) / 255.
+        lr = torch.clamp((lr * 255.0).round(), 0, 255) / 255.
+
         # Crop image patch
         gt, lr = random_crop(gt, lr, bsrnet_config.gt_image_size, bsrnet_config.upscale_factor)
 

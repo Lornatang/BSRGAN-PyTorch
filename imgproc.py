@@ -24,7 +24,6 @@ from scipy import ndimage
 from scipy.interpolate import interp2d
 from scipy.linalg import orth
 from scipy.stats import multivariate_normal
-from torchvision.transforms import functional as F
 
 __all__ = [
     "image_to_tensor", "tensor_to_image",
@@ -203,7 +202,7 @@ def _anisotropic_gaussian(ksize: int = 15, theta: float = np.pi, l1: int | float
     V = np.array([[v[0], v[1]], [v[1], -v[0]]])
     D = np.array([[l1, 0], [0, l2]])
     Sigma = np.dot(np.dot(V, D), np.linalg.inv(V))
-    k = _gm_blur_kernel([0, 0], Sigma , ksize)
+    k = _gm_blur_kernel([0, 0], Sigma, ksize)
 
     return k
 
@@ -244,14 +243,12 @@ def _add_gaussian_noise(image: ndarray, noise_level1: int = 2, noise_level2: int
 
 
 # Copy from `https://github.com/cszn/KAIR/blob/master/utils/utils_blindsr.py`
-def _add_jpeg_noise(image: ndarray) -> ndarray:
+def _add_jpeg_compression(image: ndarray) -> ndarray:
     quality_factor = random.randint(30, 95)
-    image = np.float32(image) / 255.
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    image = np.uint8((image.clip(0, 1)*255.).round())
     _, encode_image = cv2.imencode(".jpg", image, [int(cv2.IMWRITE_JPEG_QUALITY), quality_factor])
     image = cv2.imdecode(encode_image, 1)
     image = np.float32(image) / 255.
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     return image
 
@@ -273,7 +270,7 @@ def image_to_tensor(image: np.ndarray, range_norm: bool, half: bool) -> torch.Te
 
     """
     # Convert image data type to Tensor data type
-    tensor = F.to_tensor(image)
+    tensor = torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1).float()
 
     # Scale the image data from [0, 1] to [-1, 1]
     if range_norm:
@@ -430,7 +427,9 @@ def degradation_process(
     # First down-sample
     if upscale_factor == 4 and random.random() < scale2_prob:
         if np.random.rand() < 0.5:
-            image = cv2.resize(image, (image_width // 2, image_height // 2), interpolation=random.choice([1, 2, 3]))
+            image = cv2.resize(image,
+                               (int(1 / 2 * image_width), int(1 / 2 * image_height)),
+                               interpolation=random.choice([1, 2, 3]))
         else:
             image = image_resize(image, 1 / 2, True)
         image = np.clip(image, 0.0, 1.0)
@@ -453,7 +452,7 @@ def degradation_process(
             if random.random() < 0.75:
                 sf1 = random.uniform(1, 2 * upscale_factor)
                 image = cv2.resize(image,
-                                   (int(1 / sf1 * image.shape[1]), int(1 / sf1 * image.shape[0])),
+                                   (int(1 / sf1 * image_width), int(1 / sf1 * image_height)),
                                    interpolation=random.choice([1, 2, 3]))
             else:
                 k = _fspecial_gaussian(25, random.uniform(0.1, 0.6 * upscale_factor))
@@ -475,10 +474,10 @@ def degradation_process(
         elif i == 5:
             # Add JPEG noise
             if random.random() < jpeg_prob:
-                image = _add_jpeg_noise(image)
+                image = _add_jpeg_compression(image)
 
     # Add final JPEG compression noise
-    image = _add_jpeg_noise(image)
+    image = _add_jpeg_compression(image)
 
     return image
 
