@@ -23,7 +23,7 @@ from torchvision.models.feature_extraction import create_feature_extractor
 
 __all__ = [
     "Discriminator", "BSRGAN", "ContentLoss",
-    "discriminator", "lsrgan_x2", "lsrgan_x4", "content_loss", "content_loss_for_vgg19_34",
+    "discriminator", "bsrgan_x2", "bsrgan_x4", "content_loss",
 
 ]
 
@@ -309,7 +309,7 @@ def bsrgan_x2(**kwargs: Any) -> BSRGAN:
     return model
 
 
-def lsrgan_x4(**kwargs: Any) -> BSRGAN:
+def bsrgan_x4(**kwargs: Any) -> BSRGAN:
     model = BSRGAN(upscale_factor=4, **kwargs)
 
     return model
