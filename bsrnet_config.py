@@ -35,18 +35,18 @@ cudnn.benchmark = True
 # When evaluating the performance of the SR model, whether to verify only the Y channel image data
 only_test_y_channel = True
 # Model architecture name
-g_arch_name = "bsrgan_x2"
+g_arch_name = "bsrgan_x4"
 # Model arch config
 in_channels = 3
 out_channels = 3
 channels = 64
 growth_channels = 32
 num_blocks = 23
-upscale_factor = 2
+upscale_factor = 4
 # Current configuration parameter method
 mode = "train"
 # Experiment name, easy to save weights and log files
-exp_name = "BSRNet_x2"
+exp_name = "BSRNet_x4"
 
 if mode == "train":
     # Dataset address
