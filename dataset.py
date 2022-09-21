@@ -75,14 +75,13 @@ class TrainValidImageDataset(Dataset):
         else:
             raise ValueError("Unsupported data processing model, please use `Train` or `Valid`.")
 
+        # BGR convert to RGB
+        gt_image = cv2.cvtColor(gt_image, cv2.COLOR_BGR2RGB)
+
         lr_image = imgproc.degradation_process(gt_image,
                                                self.upscale_factor,
                                                self.parameters["jpeg_prob"],
                                                self.parameters["scale2_prob"])
-
-        # BGR convert to RGB
-        gt_image = cv2.cvtColor(gt_image, cv2.COLOR_BGR2RGB)
-        lr_image = cv2.cvtColor(lr_image, cv2.COLOR_BGR2RGB)
 
         # Convert image data into Tensor stream format (PyTorch).
         # Note: The range of input and output is between [0, 1]

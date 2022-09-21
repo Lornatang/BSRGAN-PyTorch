@@ -36,7 +36,7 @@ def choice_device(device_type: str) -> torch.device:
     return device
 
 
-def build_model(model_arch_name: str, device: torch.device) -> [nn.Module, nn.Module]:
+def build_model(model_arch_name: str, device: torch.device) -> nn.Module:
     # Initialize the super-resolution model
     g_model = model.__dict__[model_arch_name](in_channels=3,
                                               out_channels=3,
@@ -78,11 +78,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Using the model generator super-resolution images.")
-    parser.add_argument("--model_arch_name", type=str, default="lsrgan_x4")
-    parser.add_argument("--inputs_path", type=str, default="./figure/comic_lr.png", help="Low-resolution image path.")
-    parser.add_argument("--output_path", type=str, default="./figure/comic_sr.png", help="Super-resolution image path.")
+    parser.add_argument("--model_arch_name", type=str, default="bsrgan_x4")
+    parser.add_argument("--inputs_path", type=str, default="./figure/ETH_lr.png", help="Low-resolution image path.")
+    parser.add_argument("--output_path", type=str, default="./figure/ETH_sr.png", help="Super-resolution image path.")
     parser.add_argument("--model_weights_path", type=str,
-                        default="./results/pretrained_models/LSRResNet_x4-DIV2K-55d16947.pth.tar",
+                        default="./results/pretrained_models/BSRNet_x4/BSRNet_x4-DIV2K-2839a8f2.pth.tar",
                         help="Model weights file path.")
     parser.add_argument("--device_type", type=str, default="cpu", choices=["cpu", "cuda"])
     args = parser.parse_args()
