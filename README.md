@@ -1,28 +1,28 @@
-# LSRGAN-PyTorch
+# BSRGAN-PyTorch
 
 ## Overview
 
 This repository contains an op-for-op PyTorch reimplementation
-of [Optimizing Generative Adversarial Networks for Image Super Resolution via Latent Space Regularization](https://arxiv.org/pdf/2001.08126.pdf)
+of [Designing a Practical Degradation Model for Deep Blind Image Super-Resolution](https://arxiv.org/pdf/2103.14006v2.pdf)
 .
 
 ## Table of contents
 
-- [LSRGAN-PyTorch](#lsrgan-pytorch)
+- [BSRGAN-PyTorch](#bsrgan-pytorch)
     - [Overview](#overview)
     - [Table of contents](#table-of-contents)
     - [Download weights](#download-weights)
     - [Download datasets](#download-datasets)
     - [How Test and Train](#how-test-and-train)
         - [Test](#test)
-        - [Train LSRResNet model](#train-lsrresnet-model)
-        - [Resume train LSRResNet model](#resume-train-lsrresnet-model)
-        - [Train LSRGAN model](#train-lsrgan-model)
-        - [Resume train LSRGAN model](#resume-train-lsrgan-model)
+        - [Train BSRNet model](#train-bsrnet-model)
+        - [Resume train BSRNet model](#resume-train-bsrnet-model)
+        - [Train BSRGAN model](#train-bsrgan-model)
+        - [Resume train BSRGAN model](#resume-train-bsrgan-model)
     - [Result](#result)
     - [Contributing](#contributing)
     - [Credit](#credit)
-        - [Optimizing Generative Adversarial Networks for Image Super Resolution via Latent Space Regularization](#optimizing-generative-adversarial-networks-for-image-super-resolution-via-latent-space-regularization)
+        - [Designing a Practical Degradation Model for Deep Blind Image Super-Resolution](#designing-a-practical-degradation-model-for-deep-blind-image-super-resolution)
 
 ## Download weights
 
@@ -40,69 +40,72 @@ Please refer to `README.md` in the `data` directory for the method of making a d
 
 ## How Test and Train
 
-Both training and testing only need to modify the `lsrresnet_config.py` or `lsrgan_config.py` file.
+Both training and testing only need to modify the `bsrnet_config.py` or `bsrgan_config.py` file.
 
 ### Test
 
-modify the `lsrgan_config.py`
-- line 31: `g_arch_name` change to `lsrgan_x4`.
-- line 38: `upscale_factor` change to `4`.
-- line 40: `mode` change to `test`.
-- line 89: `model_weights_path` change to `./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar`.
+modify the `bsrgan_config.py`
+
+- line 47: `g_arch_name` change to `bsrgan_x4`.
+- line 54: `upscale_factor` change to `4`.
+- line 56: `mode` change to `test`.
+- line 105: `g_model_weights_path` change to `./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar`.
 -
 
 ```bash
 python3 test.py
 ```
 
-### Train LSRResNet model
+### Train BSRNet model
 
-modify the `lsrresnet_config.py`
-- line 31: `g_arch_name` change to `lsrgan_x4`.
-- line 38: `upscale_factor` change to `4`.
-- line 40: `mode` change to `train`.
-- line 55: `pretrained_model_weights_path` change to `./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar`.
+modify the `bsrnet_config.py`
 
-```bash
-python3 train_bsrnet.py
-```
-
-### Resume train LSRResNet model
-
-modify the `lsrresnet_config.py`
-- line 31: `g_arch_name` change to `lsrgan_x4`.
-- line 38: `upscale_factor` change to `4`.
-- line 40: `mode` change to `train`.
-- line 59: `resume` change to `samples/LSRResNet_x4/epoch_xxx.pth.tar`.
+- line 47: `g_arch_name` change to `bsrgan_x4`.
+- line 54: `upscale_factor` change to `4`.
+- line 56: `mode` change to `train`.
+- line 73: `pretrained_g_model_weights_path` change to `./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar`.
 
 ```bash
 python3 train_bsrnet.py
 ```
 
-### Train LSRGAN model
+### Resume train BSRNet model
 
-modify the `lsrgan_config.py`
-- line 32: `g_arch_name` change to `discriminator`.
-- line 32: `g_arch_name` change to `lsrgan_x4`.
-- line 39: `upscale_factor` change to `4`.
-- line 41: `mode` change to `train`.
-- line 57: `pretrained_d_model_weights_path` change to `./results/pretrained_models/LSRGAN_x4-DIV2K-e19a5cef.pth.tar`.
-- line 58: `pretrained_g_model_weights_path` change to `./results/pretrained_models/LSRGAN_x4-DIV2K-e19a5cef.pth.tar`.
+modify the `bsrnet_config.py`
+
+- line 47: `g_arch_name` change to `bsrgan_x4`.
+- line 54: `upscale_factor` change to `4`.
+- line 56: `mode` change to `train`.
+- line 76: `resume_g` change to `samples/BSRNet_x4/epoch_xxx.pth.tar`.
+
+```bash
+python3 train_bsrnet.py
+```
+
+### Train BSRGAN model
+
+modify the `bsrgan_config.py`
+
+- line 47: `d_arch_name` change to `discriminator`.
+- line 48: `g_arch_name` change to `bsrgan_x4`.
+- line 55: `upscale_factor` change to `4`.
+- line 57: `mode` change to `train`.
+- line 75: `pretrained_g_model_weights_path` change to `./results/BSRNet_x4/best.pth.tar`.
 
 ```bash
 python3 train_bsrgan.py
 ```
 
-### Resume train LSRGAN model
+### Resume train BSRGAN model
 
-modify the `lsrgan_config.py`
-- line 32: `g_arch_name` change to `discriminator`.
-- line 32: `g_arch_name` change to `lsrgan_x4`.
-- line 39: `upscale_factor` change to `4`.
-- line 41: `mode` change to `train`.
-- line 61: `resume_d` change to `./results/pretrained_models/LSRGAN_x4-DIV2K-e19a5cef.pth.tar`.
-- line 62: `resume_g` change to `./results/pretrained_models/LSRGAN_x4-DIV2K-e19a5cef.pth.tar`.
+modify the `bsrgan_config.py`
 
+- line 47: `d_arch_name` change to `discriminator`.
+- line 48: `g_arch_name` change to `bsrgan_x4`.
+- line 55: `upscale_factor` change to `4`.
+- line 57: `mode` change to `train`.
+- line 78: `resume_d` change to `./results/BSRGAN_x4/d_epoch_xxx.pth.tar`.
+- line 79: `resume_g` change to `./results/BSRGAN_x4/g_epoch_xxx.pth.tar`.
 
 ```bash
 python3 train_bsrgan.py
@@ -110,34 +113,39 @@ python3 train_bsrgan.py
 
 ## Result
 
-Source of original paper results: [https://arxiv.org/pdf/2001.08126.pdf](https://arxiv.org/pdf/2001.08126.pdf)
+Source of original paper results: [https://arxiv.org/pdf/2103.14006v2.pdf](https://arxiv.org/pdf/2103.14006v2.pdf)
 
 In the following table, the psnr value in `()` indicates the result of the project, and `-` indicates no test.
 
-| Set14 | Scale |  LSRResNet   |    LSRGAN    |
-|:-----:|:-----:|:------------:|:------------:|
-| PSNR  |   4   | -(**30.87**) | 26.46(**-**) |
-| SSIM  |   4   | -(**0.877**) | 0.724(**-**) |
+- RealSRSet
+
+| Model  | Scale |      NIQE      | 
+|:------:|:-----:|:--------------:|
+| BSRNet |   2   |  -(**37.98**)  |
+| BSRGAN |   2   |  -(**37.98**)  |
+| BSRNet |   4   |  -(**34.35**)  |
+| BSRGAN |   4   | 5.60(**5.50**) |
+
 NIQE 5.50
 
 ```bash
-# Download `LSRGAN_x2-DIV2K-e19a5cef.pth.tar` weights to `./results/pretrained_models`
+# Download `BSRGAN_x4-DIV2K-6d507222.pth.tar` weights to `./results/pretrained_models`
 # More detail see `README.md<Download weights>`
 python3 ./inference.py
 ```
 
 Input:
 
-<span align="center"><img width="240" height="360" src="figure/comic_lr.png"/></span>
+<span align="center"><img width="640" height="640" src="figure/oldphoto2_lr.png"/></span>
 
 Output:
 
-<span align="center"><img width="240" height="360" src="figure/comic_sr.png"/></span>
+<span align="center"><img width="640" height="640" src="figure/oldphoto2_sr.png"/></span>
 
 ```text
-Build `lsrgan_x4` model successfully.
-Load `lsrgan_x4` model weights `./results/pretrained_models/LSRGAN_x2-DIV2K-e19a5cef.pth.tar` successfully.
-SR image save to `./figure/comic_sr.png`
+Build `bsrgan_x4` model successfully.
+Load `bsrgan_x4` model weights `./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar` successfully.
+SR image save to `./figure/oldphoto2_lr.png`
 ```
 
 ## Contributing
@@ -149,30 +157,33 @@ I look forward to seeing what the community does with these models!
 
 ## Credit
 
-### Optimizing Generative Adversarial Networks for Image Super Resolution via Latent Space Regularization
+### Designing a Practical Degradation Model for Deep Blind Image Super-Resolution
 
-_Juncheng Li, Faming Fang, Kangfu Mei, Guixu Zhang_ <br>
+_Zhang, Kai and Liang, Jingyun and Van Gool, Luc and Timofte, Radu_ <br>
 
 **Abstract** <br>
-Recent studies have shown that deep neural networks can significantly improve the quality of single-image
-super-resolution. Current researches tend to use deeper convolutional neural networks to enhance performance. However,
-blindly increasing the depth of the network cannot ameliorate the network effectively. Worse still, with the depth of
-the network increases, more problems occurred in the training process and more training tricks are needed. In this
-paper, we propose a novel multi-scale residual network (LSRGAN) to fully exploit the image features, which outperform most
-of the state-of-the-art methods. Based on the residual block, we introduce convolution kernels of different sizes to
-adaptively detect the image features in different scales. Meanwhile, we let these features interact with each other to
-get the most efficacious image information, we call this structure Multi-scale Residual Block (MSRB). Furthermore, the
-outputs of each MSRB are used as the hierarchical features for global feature fusion. Finally, all these features are
-sent to the reconstruction module for recovering the high-quality image.
+It is widely acknowledged that single image super-resolution (SISR) methods would not perform well if the assumed
+degradation model deviates from those in real images. Although several degradation models take additional factors into
+consideration, such as blur, they are still not effective enough to cover the diverse degradations of real images. To
+address this issue, this paper proposes to design a more complex but practical degradation model that consists of
+randomly shuffled blur, downsampling and noise degradations. Specifically, the blur is approximated by two convolutions
+with isotropic and anisotropic Gaussian kernels; the downsampling is randomly chosen from nearest, bilinear and bicubic
+interpolations; the noise is synthesized by adding Gaussian noise with different noise levels, adopting JPEG compression
+with different quality factors, and generating processed camera sensor noise via reverse-forward camera image signal
+processing (ISP) pipeline model and RAW image noise model. To verify the effectiveness of the new degradation model, we
+have trained a deep blind ESRGAN super-resolver and then applied it to super-resolve both synthetic and real images with
+diverse degradations. The experimental results demonstrate that the new degradation model can help to significantly
+improve the practicability of deep super-resolvers, thus providing a powerful alternative solution for real SISR
+applications.
 
-[[Paper]](https://arxiv.org/pdf/2001.08126.pdf)
+[[Paper]](https://arxiv.org/pdf/2103.14006v2.pdf) [[Code]](https://arxiv.org/pdf/2103.14006v2.pdf)
 
 ```bibtex
-@inproceedings{li2018multi,
-  title={Multi-scale residual network for image super-resolution},
-  author={Li, Juncheng and Fang, Faming and Mei, Kangfu and Zhang, Guixu},
-  booktitle={Proceedings of the European conference on computer vision (ECCV)},
-  pages={517--532},
-  year={2018}
+@inproceedings{zhang2021designing,
+    title={Designing a Practical Degradation Model for Deep Blind Image Super-Resolution},
+    author={Zhang, Kai and Liang, Jingyun and Van Gool, Luc and Timofte, Radu},
+    booktitle={IEEE International Conference on Computer Vision},
+    pages={4791--4800},
+    year={2021}
 }
 ```

@@ -70,10 +70,10 @@ if mode == "train":
     num_workers = 4
 
     # Load the address of the pretrained model
-    pretrained_model_weights_path = ""
+    pretrained_g_model_weights_path = "./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar"
 
     # Incremental training and migration training
-    resume = ""
+    resume_g = ""
 
     # Total num epochs (2,000,000 iters)
     epochs = 2050
@@ -102,4 +102,4 @@ if mode == "test":
     lr_dir = "./data/RealSRSet"
     sr_dir = f"./results/{exp_name}"
 
-    model_weights_path = "./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar"
+    g_model_weights_path = "./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar"

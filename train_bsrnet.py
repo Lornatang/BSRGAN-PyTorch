@@ -59,17 +59,17 @@ def main():
     print("Define all optimizer scheduler functions successfully.")
 
     print("Check whether to load pretrained model weights...")
-    if bsrnet_config.pretrained_model_weights_path:
-        bsrnet_model = load_state_dict(bsrnet_model, bsrnet_config.pretrained_model_weights_path)
-        print(f"Loaded `{bsrnet_config.pretrained_model_weights_path}` pretrained model weights successfully.")
+    if bsrnet_config.pretrained_g_model_weights_path:
+        bsrnet_model = load_state_dict(bsrnet_model, bsrnet_config.pretrained_g_model_weights_path)
+        print(f"Loaded `{bsrnet_config.pretrained_g_model_weights_path}` pretrained model weights successfully.")
     else:
         print("Pretrained model weights not found.")
 
     print("Check whether the pretrained model is restored...")
-    if bsrnet_config.resume:
+    if bsrnet_config.resume_g:
         bsrnet_model, ema_bsrnet_model, start_epoch, est_psnr, best_ssim, optimizer, scheduler = load_state_dict(
             bsrnet_model,
-            bsrnet_config.pretrained_model_weights_path,
+            bsrnet_config.pretrained_g_model_weights_path,
             ema_bsrnet_model,
             optimizer,
             scheduler,

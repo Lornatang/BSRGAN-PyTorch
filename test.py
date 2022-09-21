@@ -17,7 +17,7 @@ import cv2
 import torch
 from natsort import natsorted
 
-import bsrnet_config
+import bsrgan_config
 import imgproc
 import model
 from image_quality_assessment import NIQE
@@ -30,46 +30,46 @@ model_names = sorted(
 
 def main() -> None:
     # Initialize the super-resolution bsrgan_model
-    bsrgan_model = model.__dict__[bsrnet_config.g_arch_name](in_channels=bsrnet_config.in_channels,
-                                                             out_channels=bsrnet_config.out_channels,
-                                                             channels=bsrnet_config.channels,
-                                                             growth_channels=bsrnet_config.growth_channels,
-                                                             num_blocks=bsrnet_config.num_blocks)
-    bsrgan_model = bsrgan_model.to(device=bsrnet_config.device)
-    print(f"Build `{bsrnet_config.g_arch_name}` model successfully.")
+    bsrgan_model = model.__dict__[bsrgan_config.g_arch_name](in_channels=bsrgan_config.in_channels,
+                                                             out_channels=bsrgan_config.out_channels,
+                                                             channels=bsrgan_config.channels,
+                                                             growth_channels=bsrgan_config.growth_channels,
+                                                             num_blocks=bsrgan_config.num_blocks)
+    bsrgan_model = bsrgan_model.to(device=bsrgan_config.device)
+    print(f"Build `{bsrgan_config.g_arch_name}` model successfully.")
 
     # Load the super-resolution bsrgan_model weights
-    checkpoint = torch.load(bsrnet_config.model_weights_path, map_location=lambda storage, loc: storage)
+    checkpoint = torch.load(bsrgan_config.g_model_weights_path, map_location=lambda storage, loc: storage)
     bsrgan_model.load_state_dict(checkpoint["state_dict"])
-    print(f"Load `{bsrnet_config.g_arch_name}` model weights "
-          f"`{os.path.abspath(bsrnet_config.model_weights_path)}` successfully.")
+    print(f"Load `{bsrgan_config.g_arch_name}` model weights "
+          f"`{os.path.abspath(bsrgan_config.g_model_weights_path)}` successfully.")
 
     # Create a folder of super-resolution experiment results
-    make_directory(bsrnet_config.sr_dir)
+    make_directory(bsrgan_config.sr_dir)
 
     # Start the verification mode of the bsrgan_model.
     bsrgan_model.eval()
 
     # Initialize the sharpness evaluation function
-    niqe = NIQE(bsrnet_config.upscale_factor, bsrnet_config.niqe_model_path)
+    niqe = NIQE(bsrgan_config.upscale_factor, bsrgan_config.niqe_model_path)
 
     # Set the sharpness evaluation function calculation device to the specified bsrgan_model
-    niqe = niqe.to(device=bsrnet_config.device, non_blocking=True)
+    niqe = niqe.to(device=bsrgan_config.device, non_blocking=True)
 
     # Initialize IQA metrics
     niqe_metrics = 0.0
 
     # Get a list of test image file names.
-    file_names = natsorted(os.listdir(bsrnet_config.lr_dir))
+    file_names = natsorted(os.listdir(bsrgan_config.lr_dir))
     # Get the number of test image files.
     total_files = len(file_names)
 
     for index in range(total_files):
-        sr_image_path = os.path.join(bsrnet_config.sr_dir, file_names[index])
-        lr_image_path = os.path.join(bsrnet_config.lr_dir, file_names[index])
+        sr_image_path = os.path.join(bsrgan_config.sr_dir, file_names[index])
+        lr_image_path = os.path.join(bsrgan_config.lr_dir, file_names[index])
 
         print(f"Processing `{os.path.abspath(lr_image_path)}`...")
-        lr_tensor = imgproc.preprocess_one_image(lr_image_path, bsrnet_config.device)
+        lr_tensor = imgproc.preprocess_one_image(lr_image_path, bsrgan_config.device)
 
         # Only reconstruct the Y channel image data.
         with torch.no_grad():
