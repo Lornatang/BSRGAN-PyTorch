@@ -82,7 +82,7 @@ if __name__ == "__main__":
     parser.add_argument("--inputs_path", type=str, default="./figure/ETH_lr.png", help="Low-resolution image path.")
     parser.add_argument("--output_path", type=str, default="./figure/ETH_sr.png", help="Super-resolution image path.")
     parser.add_argument("--model_weights_path", type=str,
-                        default="./results/pretrained_models/BSRNet_x4/BSRNet_x4-DIV2K-2839a8f2.pth.tar",
+                        default="./results/pretrained_models/BSRNet_x4-DIV2K-2839a8f2.pth.tar",
                         help="Model weights file path.")
     parser.add_argument("--device_type", type=str, default="cpu", choices=["cpu", "cuda"])
     args = parser.parse_args()
