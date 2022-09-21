@@ -20,8 +20,15 @@ from torch.backends import cudnn
 degradation_process_parameters_dict = {
     "jpeg_prob": 0.9,
     "scale2_prob": 0.25,
-    "shuffle_prob": 0.5,
+    "shuffle_prob": 0.1,
     "use_sharp": False,
+}
+
+degradation_process_plus_parameters_dict = {
+    "shuffle_prob": 0.1,
+    "poisson_prob": 0.1,
+    "speckle_prob": 0.1,
+    "use_sharp": True,
 }
 
 # Random seed to maintain reproducible results

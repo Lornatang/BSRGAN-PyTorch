@@ -20,8 +20,15 @@ from torch.backends import cudnn
 degradation_process_parameters_dict = {
     "jpeg_prob": 0.9,
     "scale2_prob": 0.25,
-    "shuffle_prob": 0.5,
+    "shuffle_prob": 0.1,
     "use_sharp": False,
+}
+
+degradation_process_plus_parameters_dict = {
+    "poisson_prob": 0.1,
+    "speckle_prob": 0.1,
+    "shuffle_prob": 0.1,
+    "use_sharp": True,
 }
 
 # Random seed to maintain reproducible results
@@ -103,8 +110,7 @@ if mode == "train":
 
 if mode == "test":
     # Test data address
-    test_gt_images_dir = "./data/Set5/GTmod12"
-    test_lr_images_dir = f"./data/Set5/LRbicx{upscale_factor}"
+    lr_dir = "./data/RealSRSet"
     sr_dir = f"./results/{exp_name}"
 
     g_model_weights_path = "./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar"

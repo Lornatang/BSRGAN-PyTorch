@@ -270,7 +270,8 @@ def _fit_mscn_ipac(image: np.ndarray,
         feature = []
         for idx_w in range(num_block_width):
             for idx_h in range(num_block_height):
-                vector = image_norm[idx_h * block_size_height // scale:(idx_h + 1) * block_size_height // scale,
+                vector = image_norm[
+                         idx_h * block_size_height // scale:(idx_h + 1) * block_size_height // scale,
                          idx_w * block_size_width // scale:(idx_w + 1) * block_size_width // scale]
                 feature.append(_get_mscn_feature(vector))
 

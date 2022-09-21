@@ -28,7 +28,7 @@ from torch import Tensor
 
 __all__ = [
     "image_to_tensor", "tensor_to_image",
-    "image_resize", "preprocess_one_image", "degradation_process",
+    "image_resize", "preprocess_one_image", "degradation_process", "degradation_process_plus",
     "expand_y", "rgb_to_ycbcr", "bgr_to_ycbcr", "ycbcr_to_bgr", "ycbcr_to_rgb",
     "rgb_to_ycbcr_torch", "bgr_to_ycbcr_torch",
     "random_crop_np",
@@ -244,6 +244,43 @@ def _add_gaussian_noise(image: ndarray, noise_level1: int = 2, noise_level2: int
 
 
 # Copy from `https://github.com/cszn/KAIR/blob/master/utils/utils_blindsr.py`
+def _add_poisson_noise(image: ndarray):
+    image = np.clip((image * 255.0).round(), 0, 255) / 255.
+    vals = 10 ** (2 * random.random() + 2.0)  # [2, 4]
+    if random.random() < 0.5:
+        image = np.random.poisson(image * vals).astype(np.float32) / vals
+    else:
+        img_gray = np.dot(image[..., :3], [0.299, 0.587, 0.114])
+        img_gray = np.clip((img_gray * 255.0).round(), 0, 255) / 255.
+        noise_gray = np.random.poisson(img_gray * vals).astype(np.float32) / vals - img_gray
+        image += noise_gray[:, :, np.newaxis]
+    image = np.clip(image, 0.0, 1.0)
+
+    return image
+
+
+# Copy from `https://github.com/cszn/KAIR/blob/master/utils/utils_blindsr.py`
+def _add_speckle_noise(image: ndarray, noise_level1: int = 2, noise_level2: int = 25):
+    noise_level = random.randint(noise_level1, noise_level2)
+    image = np.clip(image, 0.0, 1.0)
+    rnum = random.random()
+    if rnum > 0.6:
+        image += image * np.random.normal(0, noise_level / 255.0, image.shape).astype(np.float32)
+    elif rnum < 0.4:
+        image += image * np.random.normal(0, noise_level / 255.0, (*image.shape[:2], 1)).astype(np.float32)
+    else:
+        L = noise_level2 / 255.
+        D = np.diag(np.random.rand(3))
+        U = orth(np.random.rand(3, 3))
+        conv = np.dot(np.dot(np.transpose(U), D), U)
+        image += image * np.random.multivariate_normal([0, 0, 0], np.abs(L ** 2 * conv), image.shape[:2]).astype(
+            np.float32)
+    image = np.clip(image, 0.0, 1.0)
+
+    return image
+
+
+# Copy from `https://github.com/cszn/KAIR/blob/master/utils/utils_blindsr.py`
 def _add_jpeg_compression(image: ndarray) -> ndarray:
     quality_factor = random.randint(30, 95)
     image = np.uint8((image.clip(0, 1) * 255.).round())
@@ -252,6 +289,41 @@ def _add_jpeg_compression(image: ndarray) -> ndarray:
     image = cv2.imdecode(encode_image, 1)
     image = np.float32(image) / 255.
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    return image
+
+
+def _usm_sharp(image: np.ndarray, weight: float = 0.5, radius: int = 50, threshold: int = 10) -> np.ndarray:
+    if radius % 2 == 0:
+        radius += 1
+
+    blur = cv2.GaussianBlur(image, (radius, radius), 0)
+    residual = image - blur
+    mask = np.abs(residual) * 255 > threshold
+    mask = mask.astype("float32")
+    soft_mask = cv2.GaussianBlur(mask, (radius, radius), 0)
+
+    out = image + weight * residual
+    out = np.clip(out, 0, 1)
+    out = soft_mask * out + (1 - soft_mask) * image
+
+    return out
+
+
+# Copy from `https://github.com/cszn/KAIR/blob/master/utils/utils_blindsr.py`
+def _add_resize(image: ndarray, upscale_factor: int):
+    image_height, image_width = image.shape[:2]
+    rnum = np.random.rand()
+    if rnum > 0.8:  # up
+        sf1 = random.uniform(1, 2)
+    elif rnum < 0.7:  # down
+        sf1 = random.uniform(0.5 / upscale_factor, 1)
+    else:
+        sf1 = 1.0
+    image = cv2.resize(image,
+                       (int(sf1 * image_width), int(sf1 * image_height)),
+                       interpolation=random.choice([1, 2, 3]))
+    image = np.clip(image, 0.0, 1.0)
 
     return image
 
@@ -478,6 +550,67 @@ def degradation_process(
             # Add JPEG noise
             if random.random() < jpeg_prob:
                 image = _add_jpeg_compression(image)
+
+    # Add final JPEG compression noise
+    image = _add_jpeg_compression(image)
+
+    return image
+
+
+def degradation_process_plus(
+        image: ndarray,
+        upscale_factor: int,
+        use_sharp: bool = True,
+        shuffle_prob: float = 0.5,
+        poisson_prob: float = 0.5,
+        speckle_prob: float = 0.5,
+) -> ndarray:
+    """More detail see "Designing a Practical Degradation Model for Deep Blind Image Super-Resolution"""
+    image_height, image_width = image.shape[:2]
+
+    if use_sharp:
+        image = _usm_sharp(image, 0.5, 50, 10)
+
+    if random.random() < shuffle_prob:
+        shuffle_order = random.sample(range(11), 11)
+    else:
+        shuffle_order = list(range(11))
+        # local shuffle for noise, JPEG is always the last one
+        shuffle_order[2:5] = random.sample(shuffle_order[2:5], len(range(2, 5)))
+        shuffle_order[7:11] = random.sample(shuffle_order[7:11], len(range(7, 11)))
+
+    for i in shuffle_order:
+        if i == 0:
+            image = _add_blur(image, upscale_factor)
+        elif i == 1:
+            image = _add_resize(image, upscale_factor)
+        elif i == 2:
+            image = _add_gaussian_noise(image, 2, 25)
+        elif i == 3:
+            if random.random() < poisson_prob:
+                image = _add_poisson_noise(image)
+        elif i == 4:
+            if random.random() < speckle_prob:
+                image = _add_speckle_noise(image)
+        elif i == 5:
+            image = _add_jpeg_compression(image)
+        elif i == 6:
+            image = _add_blur(image, upscale_factor)
+        elif i == 7:
+            image = _add_resize(image, upscale_factor)
+        elif i == 8:
+            image = _add_gaussian_noise(image, 2, 25)
+        elif i == 9:
+            if random.random() < poisson_prob:
+                image = _add_poisson_noise(image)
+        elif i == 10:
+            if random.random() < speckle_prob:
+                image = _add_speckle_noise(image)
+
+    # resize to desired size
+    image = cv2.resize(image,
+                       (image_width // upscale_factor, image_height // upscale_factor),
+                       interpolation=random.choice([1, 2, 3]))
 
     # Add final JPEG compression noise
     image = _add_jpeg_compression(image)
