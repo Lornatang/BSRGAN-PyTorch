@@ -34,6 +34,8 @@ device = torch.device("cuda", 0)
 cudnn.benchmark = True
 # When evaluating the performance of the SR model, whether to verify only the Y channel image data
 only_test_y_channel = True
+# NIQE model address
+niqe_model_path = "./results/pretrained_models/niqe_model.mat"
 # Model architecture name
 g_arch_name = "bsrgan_x4"
 # Model arch config
@@ -90,8 +92,7 @@ if mode == "train":
 
 if mode == "test":
     # Test data address
-    test_gt_images_dir = "./data/Set5/GTmod12"
-    test_lr_images_dir = f"./data/Set5/LRbicx{upscale_factor}"
+    lr_dir = "./data/RealSRSet"
     sr_dir = f"./results/{exp_name}"
 
-    model_weights_path = "./results/pretrained_models/LSRResNet_x4-DIV2K-55d16947.pth.tar"
+    model_weights_path = "./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar"

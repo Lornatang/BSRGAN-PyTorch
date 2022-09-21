@@ -48,7 +48,7 @@ modify the `lsrgan_config.py`
 - line 31: `g_arch_name` change to `lsrgan_x4`.
 - line 38: `upscale_factor` change to `4`.
 - line 40: `mode` change to `test`.
-- line 89: `model_weights_path` change to `./results/pretrained_models/LSRResNet_x4-DIV2K-55d16947.pth.tar`.
+- line 89: `model_weights_path` change to `./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar`.
 -
 
 ```bash
@@ -61,7 +61,7 @@ modify the `lsrresnet_config.py`
 - line 31: `g_arch_name` change to `lsrgan_x4`.
 - line 38: `upscale_factor` change to `4`.
 - line 40: `mode` change to `train`.
-- line 55: `pretrained_model_weights_path` change to `./results/pretrained_models/LSRResNet_x4-DIV2K-55d16947.pth.tar`.
+- line 55: `pretrained_model_weights_path` change to `./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar`.
 
 ```bash
 python3 train_bsrnet.py
@@ -118,6 +118,7 @@ In the following table, the psnr value in `()` indicates the result of the proje
 |:-----:|:-----:|:------------:|:------------:|
 | PSNR  |   4   | -(**30.87**) | 26.46(**-**) |
 | SSIM  |   4   | -(**0.877**) | 0.724(**-**) |
+NIQE 5.50
 
 ```bash
 # Download `LSRGAN_x2-DIV2K-e19a5cef.pth.tar` weights to `./results/pretrained_models`
