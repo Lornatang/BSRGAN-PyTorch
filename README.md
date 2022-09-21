@@ -143,7 +143,7 @@ Output:
 ```text
 Build `bsrgan_x4` model successfully.
 Load `bsrgan_x4` model weights `./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar` successfully.
-SR image save to `./figure/oldphoto2_lr.png`
+SR image save to `./figure/oldphoto2_sr.png`
 ```
 
 ## Contributing
