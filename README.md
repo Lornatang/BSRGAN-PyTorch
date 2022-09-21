@@ -121,12 +121,10 @@ In the following table, the psnr value in `()` indicates the result of the proje
 
 | Model  | Scale |      NIQE      | 
 |:------:|:-----:|:--------------:|
-| BSRNet |   2   |  -(**37.98**)  |
-| BSRGAN |   2   |  -(**37.98**)  |
-| BSRNet |   4   |  -(**34.35**)  |
+| BSRNet |   2   |  -(**7.25**)   |
+| BSRGAN |   2   |  -(**6.39**)   |
+| BSRNet |   4   |  -(**8.06**)   |
 | BSRGAN |   4   | 5.60(**5.50**) |
-
-NIQE 5.50
 
 ```bash
 # Download `BSRGAN_x4-DIV2K-6d507222.pth.tar` weights to `./results/pretrained_models`

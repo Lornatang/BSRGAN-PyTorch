@@ -54,9 +54,9 @@ growth_channels = 32
 num_blocks = 23
 upscale_factor = 4
 # Current configuration parameter method
-mode = "train"
+mode = "test"
 # Experiment name, easy to save weights and log files
-exp_name = "BSRGAN_x4"
+exp_name = "x4"
 
 if mode == "train":
     # Dataset address
@@ -113,4 +113,4 @@ if mode == "test":
     lr_dir = "./data/RealSRSet"
     sr_dir = f"./results/{exp_name}"
 
-    g_model_weights_path = "./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar"
+    g_model_weights_path = "./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar"
