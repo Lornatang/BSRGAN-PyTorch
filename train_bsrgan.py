@@ -321,8 +321,9 @@ def train(
         gt, lr = random_crop(gt, lr, bsrgan_config.gt_image_size, bsrgan_config.upscale_factor)
 
         # Set the real sample label to 1, and the false sample label to 0
-        real_label = torch.full([gt.size(0), 1], 1.0, dtype=gt.dtype, device=bsrgan_config.device)
-        fake_label = torch.full([gt.size(0), 1], 0.0, dtype=gt.dtype, device=bsrgan_config.device)
+        batch_size, _, height, width = gt.shape
+        real_label = torch.full([batch_size, 1, height, width], 1.0, dtype=gt.dtype, device=bsrgan_config.device)
+        fake_label = torch.full([batch_size, 1, height, width], 0.0, dtype=gt.dtype, device=bsrgan_config.device)
 
         # Start training the discriminator model
         # During discriminator model training, enable discriminator model backpropagation
@@ -371,7 +372,7 @@ def train(
             pixel_loss = bsrgan_config.pixel_weight * pixel_criterion(sr, gt)
             content_loss = torch.sum(torch.mul(torch.Tensor(bsrgan_config.content_weight),
                                                torch.Tensor(content_criterion(sr, gt))))
-            adversarial_loss = bsrgan_config.adversarial_weight * adversarial_criterion(sr, real_label)
+            adversarial_loss = bsrgan_config.adversarial_weight * adversarial_criterion(d_model(sr), real_label)
             # Calculate the generator total loss value
             g_loss = pixel_loss + content_loss + adversarial_loss
         # Call the gradient scaling function in the mixed precision API to
