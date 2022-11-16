@@ -76,7 +76,7 @@ if mode == "train":
 
     # Load the address of the pretrained model
     pretrained_d_model_weights_path = ""
-    pretrained_g_model_weights_path = ""
+    pretrained_g_model_weights_path = "./results/BSRNet_x4-DIV2K/best.pth.tar"
 
     # Incremental training and migration training
     resume_d_model_weights_path = ""
