@@ -15,8 +15,7 @@ import os
 import time
 
 import torch
-from torch import nn
-from torch import optim
+from torch import nn, optim
 from torch.cuda import amp
 from torch.optim import lr_scheduler
 from torch.optim.swa_utils import AveragedModel
@@ -28,11 +27,7 @@ import model
 from dataset import CUDAPrefetcher, TrainValidImageDataset, TestImageDataset
 from image_quality_assessment import PSNR, SSIM
 from imgproc import random_crop
-from utils import load_state_dict, make_directory, save_checkpoint, AverageMeter, ProgressMeter
-
-model_names = sorted(
-    name for name in model.__dict__ if
-    name.islower() and not name.startswith("__") and callable(model.__dict__[name]))
+from utils import load_state_dict, make_directory, save_checkpoint, validate, AverageMeter, ProgressMeter
 
 
 def main():
@@ -46,13 +41,13 @@ def main():
     train_prefetcher, test_prefetcher = load_dataset()
     print("Load all datasets successfully.")
 
-    bsrnet_model, ema_bsrnet_model = build_model()
-    print(f"Build `{bsrnet_config.g_arch_name}` model successfully.")
+    g_model, ema_g_model = build_model()
+    print(f"Build `{bsrnet_config.g_model_arch_name}` model successfully.")
 
     criterion = define_loss()
     print("Define all loss functions successfully.")
 
-    optimizer = define_optimizer(bsrnet_model)
+    optimizer = define_optimizer(g_model)
     print("Define all optimizer functions successfully.")
 
     scheduler = define_scheduler(optimizer)
@@ -60,21 +55,21 @@ def main():
 
     print("Check whether to load pretrained model weights...")
     if bsrnet_config.pretrained_g_model_weights_path:
-        bsrnet_model = load_state_dict(bsrnet_model, bsrnet_config.pretrained_g_model_weights_path)
+        g_model = load_state_dict(g_model, bsrnet_config.pretrained_g_model_weights_path)
         print(f"Loaded `{bsrnet_config.pretrained_g_model_weights_path}` pretrained model weights successfully.")
     else:
         print("Pretrained model weights not found.")
 
-    print("Check whether the pretrained model is restored...")
-    if bsrnet_config.resume_g:
-        bsrnet_model, ema_bsrnet_model, start_epoch, est_psnr, best_ssim, optimizer, scheduler = load_state_dict(
-            bsrnet_model,
+    print("Check whether the resume model is restored...")
+    if bsrnet_config.resume_g_model_weights_path:
+        g_model, ema_g_model, start_epoch, best_psnr, best_ssim, optimizer, scheduler = load_state_dict(
+            g_model,
             bsrnet_config.pretrained_g_model_weights_path,
-            ema_bsrnet_model,
+            ema_g_model,
             optimizer,
             scheduler,
             "resume")
-        print("Loaded pretrained model weights.")
+        print("Loaded resume model weights.")
     else:
         print("Resume training model not found. Start training from scratch.")
 
@@ -93,26 +88,28 @@ def main():
     # Create an IQA evaluation model
     psnr_model = PSNR(bsrnet_config.upscale_factor, bsrnet_config.only_test_y_channel)
     ssim_model = SSIM(bsrnet_config.upscale_factor, bsrnet_config.only_test_y_channel)
-
-    # Transfer the IQA model to the specified device
     psnr_model = psnr_model.to(device=bsrnet_config.device)
     ssim_model = ssim_model.to(device=bsrnet_config.device)
 
     for epoch in range(start_epoch, bsrnet_config.epochs):
-        train(bsrnet_model,
-              ema_bsrnet_model,
+        train(g_model,
+              ema_g_model,
               train_prefetcher,
               criterion,
               optimizer,
               epoch,
               scaler,
-              writer)
-        psnr, ssim = validate(bsrnet_model,
+              writer,
+              bsrnet_config.device,
+              bsrnet_config.train_print_frequency)
+        psnr, ssim = validate(g_model,
                               test_prefetcher,
                               epoch,
                               writer,
                               psnr_model,
                               ssim_model,
+                              bsrnet_config.device,
+                              bsrnet_config.test_print_frequency,
                               "Test")
         print("\n")
 
@@ -127,13 +124,15 @@ def main():
         save_checkpoint({"epoch": epoch + 1,
                          "best_psnr": best_psnr,
                          "best_ssim": best_ssim,
-                         "state_dict": bsrnet_model.state_dict(),
-                         "ema_state_dict": ema_bsrnet_model.state_dict(),
+                         "state_dict": g_model.state_dict(),
+                         "ema_state_dict": ema_g_model.state_dict(),
                          "optimizer": optimizer.state_dict(),
                          "scheduler": scheduler.state_dict()},
-                        f"epoch_{epoch + 1}.pth.tar",
+                        f"g_epoch_{epoch + 1}.pth.tar",
                         samples_dir,
                         results_dir,
+                        "g_best.pth.tar",
+                        "g_last.pth.tar",
                         is_best,
                         is_last)
 
@@ -171,18 +170,18 @@ def load_dataset() -> [CUDAPrefetcher, CUDAPrefetcher]:
 
 
 def build_model() -> [nn.Module, nn.Module]:
-    bsrnet_model = model.__dict__[bsrnet_config.g_arch_name](in_channels=bsrnet_config.in_channels,
-                                                             out_channels=bsrnet_config.out_channels,
-                                                             channels=bsrnet_config.channels,
-                                                             growth_channels=bsrnet_config.growth_channels,
-                                                             num_blocks=bsrnet_config.num_blocks)
-    bsrnet_model = bsrnet_model.to(device=bsrnet_config.device)
+    g_model = model.__dict__[bsrnet_config.g_model_arch_name](in_channels=bsrnet_config.g_in_channels,
+                                                              out_channels=bsrnet_config.g_out_channels,
+                                                              channels=bsrnet_config.g_channels,
+                                                              growth_channels=bsrnet_config.g_growth_channels,
+                                                              num_rrdb=bsrnet_config.g_num_rrdb)
+    g_model = g_model.to(device=bsrnet_config.device)
 
     # Create an Exponential Moving Average Model
-    ema_avg = lambda averaged_model_parameter, model_parameter, num_averaged: (1 - bsrnet_config.model_ema_decay) * averaged_model_parameter + bsrnet_config.model_ema_decay * model_parameter
-    ema_bsrnet_model = AveragedModel(bsrnet_model, avg_fn=ema_avg)
+    ema_avg_fn = lambda averaged_model_parameter, model_parameter, num_averaged: (1 - bsrnet_config.model_ema_decay) * averaged_model_parameter + bsrnet_config.model_ema_decay * model_parameter
+    ema_g_model = AveragedModel(g_model, avg_fn=ema_avg_fn)
 
-    return bsrnet_model, ema_bsrnet_model
+    return g_model, ema_g_model
 
 
 def define_loss() -> nn.L1Loss:
@@ -192,8 +191,8 @@ def define_loss() -> nn.L1Loss:
     return criterion
 
 
-def define_optimizer(bsrnet_model) -> optim.Adam:
-    optimizer = optim.Adam(bsrnet_model.parameters(),
+def define_optimizer(g_model: nn.Module) -> optim.Adam:
+    optimizer = optim.Adam(g_model.parameters(),
                            bsrnet_config.model_lr,
                            bsrnet_config.model_betas,
                            bsrnet_config.model_eps)
@@ -210,14 +209,16 @@ def define_scheduler(optimizer: optim.Adam) -> lr_scheduler.MultiStepLR:
 
 
 def train(
-        bsrnet_model: nn.Module,
-        ema_bsrnet_model: nn.Module,
+        g_model: nn.Module,
+        ema_g_model: nn.Module,
         train_prefetcher: CUDAPrefetcher,
         criterion: nn.L1Loss,
         optimizer: optim.Adam,
         epoch: int,
         scaler: amp.GradScaler,
-        writer: SummaryWriter
+        writer: SummaryWriter,
+        device: torch.device = torch.device("cpu"),
+        print_frequency: int = 1,
 ) -> None:
     # Calculate how many batches of data are in each Epoch
     batches = len(train_prefetcher)
@@ -228,7 +229,7 @@ def train(
     progress = ProgressMeter(batches, [batch_time, data_time, losses], prefix=f"Epoch: [{epoch + 1}]")
 
     # Put the generative network model in training mode
-    bsrnet_model.train()
+    g_model.train()
 
     # Initialize the number of data batches to print logs on the terminal
     batch_index = 0
@@ -245,23 +246,21 @@ def train(
         data_time.update(time.time() - end)
 
         # Transfer in-memory data to CUDA devices to speed up training
-        gt = batch_data["gt"].to(device=bsrnet_config.device, non_blocking=True)
-        lr = batch_data["lr"].to(device=bsrnet_config.device, non_blocking=True)
-
-        # Clamp and round
-        gt = torch.clamp((gt * 255.0).round(), 0, 255) / 255.
-        lr = torch.clamp((lr * 255.0).round(), 0, 255) / 255.
+        gt = batch_data["gt"].to(device=device, non_blocking=True)
+        lr = batch_data["lr"].to(device=device, non_blocking=True)
+        loss_weight = torch.Tensor(bsrnet_config.loss_weight).to(device=device)
 
         # Crop image patch
         gt, lr = random_crop(gt, lr, bsrnet_config.gt_image_size, bsrnet_config.upscale_factor)
 
         # Initialize generator gradients
-        bsrnet_model.zero_grad(set_to_none=True)
+        g_model.zero_grad(set_to_none=True)
 
         # Mixed precision training
         with amp.autocast():
-            sr = bsrnet_model(lr)
-            loss = torch.mul(bsrnet_config.loss_weights, criterion(sr, gt))
+            sr = g_model(lr)
+            loss = criterion(sr, gt)
+            loss = torch.sum(torch.mul(loss_weight, loss))
 
         # Backpropagation
         scaler.scale(loss).backward()
@@ -270,7 +269,7 @@ def train(
         scaler.update()
 
         # Update EMA
-        ema_bsrnet_model.update_parameters(bsrnet_model)
+        ema_g_model.update_parameters(g_model)
 
         # Statistical loss value for terminal data output
         losses.update(loss.item(), lr.size(0))
@@ -280,7 +279,7 @@ def train(
         end = time.time()
 
         # Write the data during training to the training log file
-        if batch_index % bsrnet_config.train_print_frequency == 0:
+        if batch_index % print_frequency == 0:
             # Record loss during training and output to file
             writer.add_scalar("Train/Loss", loss.item(), batch_index + epoch * batches + 1)
             progress.display(batch_index)
@@ -290,77 +289,6 @@ def train(
 
         # Add 1 to the number of data batches to ensure that the terminal prints data normally
         batch_index += 1
-
-
-def validate(
-        bsrnet_model: nn.Module,
-        data_prefetcher: CUDAPrefetcher,
-        epoch: int,
-        writer: SummaryWriter,
-        psnr_model: nn.Module,
-        ssim_model: nn.Module,
-        mode: str
-) -> [float, float]:
-    # Calculate how many batches of data are in each Epoch
-    batch_time = AverageMeter("Time", ":6.3f")
-    psnres = AverageMeter("PSNR", ":4.2f")
-    ssimes = AverageMeter("SSIM", ":4.4f")
-    progress = ProgressMeter(len(data_prefetcher), [batch_time, psnres, ssimes], prefix=f"{mode}: ")
-
-    # Put the adversarial network model in validation mode
-    bsrnet_model.eval()
-
-    # Initialize the number of data batches to print logs on the terminal
-    batch_index = 0
-
-    # Initialize the data loader and load the first batch of data
-    data_prefetcher.reset()
-    batch_data = data_prefetcher.next()
-
-    # Get the initialization test time
-    end = time.time()
-
-    with torch.no_grad():
-        while batch_data is not None:
-            # Transfer the in-memory data to the CUDA device to speed up the test
-            gt = batch_data["gt"].to(device=bsrnet_config.device, non_blocking=True)
-            lr = batch_data["lr"].to(device=bsrnet_config.device, non_blocking=True)
-
-            # Use the generator model to generate a fake sample
-            with amp.autocast():
-                sr = bsrnet_model(lr)
-
-            # Statistical loss value for terminal data output
-            psnr = psnr_model(sr, gt)
-            ssim = ssim_model(sr, gt)
-            psnres.update(psnr.item(), lr.size(0))
-            ssimes.update(ssim.item(), lr.size(0))
-
-            # Calculate the time it takes to fully test a batch of data
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            # Record training log information
-            if batch_index % bsrnet_config.valid_print_frequency == 0:
-                progress.display(batch_index + 1)
-
-            # Preload the next batch of data
-            batch_data = data_prefetcher.next()
-
-            # After training a batch of data, add 1 to the number of data batches to ensure that the
-            # terminal print data normally
-            batch_index += 1
-
-    # print metrics
-    progress.display_summary()
-
-    if mode == "Valid" or mode == "Test":
-        writer.add_scalar(f"{mode}/PSNR", psnres.avg, epoch + 1)
-        writer.add_scalar(f"{mode}/SSIM", ssimes.avg, epoch + 1)
-    else:
-        raise ValueError("Unsupported mode, please use `Valid` or `Test`.")
-
-    return psnres.avg, ssimes.avg
 
 
 if __name__ == "__main__":

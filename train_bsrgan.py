@@ -15,24 +15,19 @@ import os
 import time
 
 import torch
-from torch import nn
-from torch import optim
+from torch import nn, optim
 from torch.cuda import amp
 from torch.optim import lr_scheduler
 from torch.optim.swa_utils import AveragedModel
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from imgproc import random_crop
 import bsrgan_config
 import model
 from dataset import CUDAPrefetcher, TrainValidImageDataset, TestImageDataset
 from image_quality_assessment import PSNR, SSIM
-from utils import load_state_dict, make_directory, save_checkpoint, AverageMeter, ProgressMeter
-
-model_names = sorted(
-    name for name in model.__dict__ if
-    name.islower() and not name.startswith("__") and callable(model.__dict__[name]))
+from imgproc import random_crop
+from utils import load_state_dict, make_directory, save_checkpoint, validate, AverageMeter, ProgressMeter
 
 
 def main():
@@ -47,7 +42,7 @@ def main():
     print("Load all datasets successfully.")
 
     d_model, g_model, ema_g_model = build_model()
-    print(f"Build `{bsrgan_config.g_arch_name}` model successfully.")
+    print(f"Build `{bsrgan_config.g_model_arch_name}` model successfully.")
 
     pixel_criterion, content_criterion, adversarial_criterion = define_loss()
     print("Define all loss functions successfully.")
@@ -64,7 +59,6 @@ def main():
         print(f"Loaded `{bsrgan_config.pretrained_d_model_weights_path}` pretrained model weights successfully.")
     else:
         print("Pretrained d model weights not found.")
-
     print("Check whether to load pretrained g model weights...")
     if bsrgan_config.pretrained_g_model_weights_path:
         g_model = load_state_dict(g_model, bsrgan_config.pretrained_g_model_weights_path)
@@ -72,28 +66,28 @@ def main():
     else:
         print("Pretrained g model weights not found.")
 
-    print("Check whether the pretrained d model is restored...")
-    if bsrgan_config.resume_d:
-        lsrresnet_model, ema_lsrresnet_model, start_epoch, est_psnr, best_ssim, optimizer, scheduler = load_state_dict(
+    print("Check whether the resume d model is restored...")
+    if bsrgan_config.resume_d_model_weights_path:
+        g_model, _, start_epoch, best_psnr, best_ssim, optimizer, scheduler = load_state_dict(
             d_model,
-            bsrgan_config.pretrained_d_model_weights_path,
-            optimizer=d_optimizer,
-            scheduler=d_scheduler,
-            load_mode="resume")
-        print("Loaded pretrained model weights.")
+            bsrgan_config.resume_d_model_weights_path,
+            None,
+            d_optimizer,
+            d_scheduler,
+            "resume")
+        print("Loaded resume d model weights.")
     else:
         print("Resume training d model not found. Start training from scratch.")
-
-    print("Check whether the pretrained g model is restored...")
-    if bsrgan_config.resume_g:
-        lsrresnet_model, ema_lsrresnet_model, start_epoch, est_psnr, best_ssim, optimizer, scheduler = load_state_dict(
+    print("Check whether the resume g model is restored...")
+    if bsrgan_config.resume_g_model_weights_path:
+        g_model, ema_g_model, start_epoch, best_psnr, best_ssim, optimizer, scheduler = load_state_dict(
             g_model,
-            bsrgan_config.pretrained_g_model_weights_path,
-            ema_model=ema_g_model,
-            optimizer=g_optimizer,
-            scheduler=g_scheduler,
-            load_mode="resume")
-        print("Loaded pretrained model weights.")
+            bsrgan_config.resume_g_model_weights_path,
+            ema_g_model,
+            g_optimizer,
+            g_scheduler,
+            "resume")
+        print("Loaded resume g model weights.")
     else:
         print("Resume training g model not found. Start training from scratch.")
 
@@ -112,8 +106,6 @@ def main():
     # Create an IQA evaluation model
     psnr_model = PSNR(bsrgan_config.upscale_factor, bsrgan_config.only_test_y_channel)
     ssim_model = SSIM(bsrgan_config.upscale_factor, bsrgan_config.only_test_y_channel)
-
-    # Transfer the IQA model to the specified device
     psnr_model = psnr_model.to(device=bsrgan_config.device)
     ssim_model = ssim_model.to(device=bsrgan_config.device)
 
@@ -129,13 +121,17 @@ def main():
               g_optimizer,
               epoch,
               scaler,
-              writer)
+              writer,
+              bsrgan_config.device,
+              bsrgan_config.train_print_frequency)
         psnr, ssim = validate(g_model,
                               test_prefetcher,
                               epoch,
                               writer,
                               psnr_model,
                               ssim_model,
+                              bsrgan_config.device,
+                              bsrgan_config.train_print_frequency,
                               "Test")
         print("\n")
 
@@ -154,9 +150,11 @@ def main():
                          "state_dict": d_model.state_dict(),
                          "optimizer": d_optimizer.state_dict(),
                          "scheduler": d_scheduler.state_dict()},
-                        f"d_epoch_{epoch + 1}.pth.tar",
+                        f"g_epoch_{epoch + 1}.pth.tar",
                         samples_dir,
                         results_dir,
+                        "d_best.pth.tar",
+                        "d_last.pth.tar",
                         is_best,
                         is_last)
         save_checkpoint({"epoch": epoch + 1,
@@ -169,6 +167,8 @@ def main():
                         f"g_epoch_{epoch + 1}.pth.tar",
                         samples_dir,
                         results_dir,
+                        "g_best.pth.tar",
+                        "g_last.pth.tar",
                         is_best,
                         is_last)
 
@@ -206,12 +206,18 @@ def load_dataset() -> [CUDAPrefetcher, CUDAPrefetcher]:
 
 
 def build_model() -> [nn.Module, nn.Module, nn.Module]:
-    d_model = model.__dict__[bsrgan_config.d_arch_name]()
-    g_model = model.__dict__[bsrgan_config.g_arch_name](in_channels=bsrgan_config.in_channels,
-                                                        out_channels=bsrgan_config.out_channels,
-                                                        channels=bsrgan_config.channels,
-                                                        growth_channels=bsrgan_config.growth_channels,
-                                                        num_blocks=bsrgan_config.num_blocks)
+    d_model = model.__dict__[bsrgan_config.d_model_arch_name](
+        in_channels=bsrgan_config.d_in_channels,
+        out_channels=bsrgan_config.d_out_channels,
+        channels=bsrgan_config.d_channels,
+    )
+    g_model = model.__dict__[bsrgan_config.g_model_arch_name](
+        in_channels=bsrgan_config.g_in_channels,
+        out_channels=bsrgan_config.g_out_channels,
+        channels=bsrgan_config.g_channels,
+        growth_channels=bsrgan_config.g_growth_channels,
+        num_rrdb=bsrgan_config.g_num_rrdb,
+    )
     d_model = d_model.to(device=bsrgan_config.device)
     g_model = g_model.to(device=bsrgan_config.device)
 
@@ -222,11 +228,11 @@ def build_model() -> [nn.Module, nn.Module, nn.Module]:
     return d_model, g_model, ema_g_model
 
 
-def define_loss() -> [nn.L1Loss, model.content_loss, nn.BCEWithLogitsLoss]:
+def define_loss() -> [nn.L1Loss, model.ContentLoss, nn.BCEWithLogitsLoss]:
     pixel_criterion = nn.L1Loss()
-    content_criterion = model.content_loss(bsrgan_config.feature_model_extractor_nodes,
-                                           bsrgan_config.feature_model_normalize_mean,
-                                           bsrgan_config.feature_model_normalize_std)
+    content_criterion = model.ContentLoss(bsrgan_config.feature_model_extractor_nodes,
+                                          bsrgan_config.feature_model_normalize_mean,
+                                          bsrgan_config.feature_model_normalize_std)
     adversarial_criterion = nn.BCEWithLogitsLoss()
 
     # Transfer to CUDA
@@ -277,7 +283,9 @@ def train(
         g_optimizer: optim.Adam,
         epoch: int,
         scaler: amp.GradScaler,
-        writer: SummaryWriter
+        writer: SummaryWriter,
+        device: torch.device = torch.device("cpu"),
+        print_frequency: int = 1,
 ) -> None:
     # Calculate how many batches of data are in each Epoch
     batches = len(train_prefetcher)
@@ -314,16 +322,19 @@ def train(
         data_time.update(time.time() - end)
 
         # Transfer in-memory data to CUDA devices to speed up training
-        gt = batch_data["gt"].to(device=bsrgan_config.device, non_blocking=True)
-        lr = batch_data["lr"].to(device=bsrgan_config.device, non_blocking=True)
+        gt = batch_data["gt"].to(device=device, non_blocking=True)
+        lr = batch_data["lr"].to(device=device, non_blocking=True)
+        pixel_weight = torch.Tensor(bsrgan_config.pixel_weight).to(device=device)
+        content_weight = torch.Tensor(bsrgan_config.content_weight).to(device=device)
+        adversarial_weight = torch.Tensor(bsrgan_config.adversarial_weight).to(device=device)
 
         # Crop image patch
         gt, lr = random_crop(gt, lr, bsrgan_config.gt_image_size, bsrgan_config.upscale_factor)
 
         # Set the real sample label to 1, and the false sample label to 0
         batch_size, _, height, width = gt.shape
-        real_label = torch.full([batch_size, 1, height, width], 1.0, dtype=gt.dtype, device=bsrgan_config.device)
-        fake_label = torch.full([batch_size, 1, height, width], 0.0, dtype=gt.dtype, device=bsrgan_config.device)
+        real_label = torch.full([batch_size, 1, height, width], 1.0, dtype=gt.dtype, device=device)
+        fake_label = torch.full([batch_size, 1, height, width], 0.0, dtype=gt.dtype, device=device)
 
         # Start training the discriminator model
         # During discriminator model training, enable discriminator model backpropagation
@@ -369,10 +380,12 @@ def train(
 
         # Calculate the perceptual loss of the generator, mainly including pixel loss, feature loss and adversarial loss
         with amp.autocast():
-            pixel_loss = bsrgan_config.pixel_weight * pixel_criterion(sr, gt)
-            content_loss = torch.sum(torch.mul(torch.Tensor(bsrgan_config.content_weight),
-                                               torch.Tensor(content_criterion(sr, gt))))
-            adversarial_loss = bsrgan_config.adversarial_weight * adversarial_criterion(d_model(sr), real_label)
+            pixel_loss = pixel_criterion(sr, gt)
+            content_loss = content_criterion(sr, gt)
+            adversarial_loss = adversarial_criterion(d_model(sr), real_label)
+            pixel_loss = torch.sum(torch.mul(pixel_weight, pixel_loss))
+            content_loss = torch.sum(torch.mul(content_weight, content_loss))
+            adversarial_loss = torch.sum(torch.mul(adversarial_weight, adversarial_loss))
             # Calculate the generator total loss value
             g_loss = pixel_loss + content_loss + adversarial_loss
         # Call the gradient scaling function in the mixed precision API to
@@ -404,7 +417,7 @@ def train(
         end = time.time()
 
         # Write the data during training to the training log file
-        if batch_index % bsrgan_config.train_print_frequency == 0:
+        if batch_index % print_frequency == 0:
             iters = batch_index + epoch * batches + 1
             writer.add_scalar("Train/D_Loss", d_loss.item(), iters)
             writer.add_scalar("Train/G_Loss", g_loss.item(), iters)
@@ -421,77 +434,6 @@ def train(
         # After training a batch of data, add 1 to the number of data batches to ensure that the
         # terminal print data normally
         batch_index += 1
-
-
-def validate(
-        g_model: nn.Module,
-        data_prefetcher: CUDAPrefetcher,
-        epoch: int,
-        writer: SummaryWriter,
-        psnr_model: nn.Module,
-        ssim_model: nn.Module,
-        mode: str
-) -> [float, float]:
-    # Calculate how many batches of data are in each Epoch
-    batch_time = AverageMeter("Time", ":6.3f")
-    psnres = AverageMeter("PSNR", ":4.2f")
-    ssimes = AverageMeter("SSIM", ":4.4f")
-    progress = ProgressMeter(len(data_prefetcher), [batch_time, psnres, ssimes], prefix=f"{mode}: ")
-
-    # Put the adversarial network model in validation mode
-    g_model.eval()
-
-    # Initialize the number of data batches to print logs on the terminal
-    batch_index = 0
-
-    # Initialize the data loader and load the first batch of data
-    data_prefetcher.reset()
-    batch_data = data_prefetcher.next()
-
-    # Get the initialization test time
-    end = time.time()
-
-    with torch.no_grad():
-        while batch_data is not None:
-            # Transfer the in-memory data to the CUDA device to speed up the test
-            gt = batch_data["gt"].to(device=bsrgan_config.device, non_blocking=True)
-            lr = batch_data["lr"].to(device=bsrgan_config.device, non_blocking=True)
-
-            # Use the generator model to generate a fake sample
-            with amp.autocast():
-                sr = g_model(lr)
-
-            # Statistical loss value for terminal data output
-            psnr = psnr_model(sr, gt)
-            ssim = ssim_model(sr, gt)
-            psnres.update(psnr.item(), lr.size(0))
-            ssimes.update(ssim.item(), lr.size(0))
-
-            # Calculate the time it takes to fully test a batch of data
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            # Record training log information
-            if batch_index % bsrgan_config.valid_print_frequency == 0:
-                progress.display(batch_index + 1)
-
-            # Preload the next batch of data
-            batch_data = data_prefetcher.next()
-
-            # After training a batch of data, add 1 to the number of data batches to ensure that the
-            # terminal print data normally
-            batch_index += 1
-
-    # print metrics
-    progress.display_summary()
-
-    if mode == "Valid" or mode == "Test":
-        writer.add_scalar(f"{mode}/PSNR", psnres.avg, epoch + 1)
-        writer.add_scalar(f"{mode}/SSIM", ssimes.avg, epoch + 1)
-    else:
-        raise ValueError("Unsupported mode, please use `Valid` or `Test`.")
-
-    return psnres.avg, ssimes.avg
 
 
 if __name__ == "__main__":

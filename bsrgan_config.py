@@ -44,19 +44,23 @@ only_test_y_channel = True
 # NIQE model address
 niqe_model_path = "./results/pretrained_models/niqe_model.mat"
 # Model architecture name
-d_arch_name = "discriminator"
-g_arch_name = "bsrgan_x4"
-# Model arch config
-in_channels = 3
-out_channels = 3
-channels = 64
-growth_channels = 32
-num_blocks = 23
+d_model_arch_name = "discriminator_unet"
+g_model_arch_name = "bsrgan_x4"
+# DiscriminatorUNet configure
+d_in_channels = 3
+d_out_channels = 1
+d_channels = 64
+# RRDBNet configure
+g_in_channels = 3
+g_out_channels = 3
+g_channels = 64
+g_growth_channels = 32
+g_num_rrdb = 23
 upscale_factor = 4
 # Current configuration parameter method
-mode = "test"
+mode = "train"
 # Experiment name, easy to save weights and log files
-exp_name = "x4"
+exp_name = "BSRGAN_x4-DIV2K"
 
 if mode == "train":
     # Dataset address
@@ -72,11 +76,11 @@ if mode == "train":
 
     # Load the address of the pretrained model
     pretrained_d_model_weights_path = ""
-    pretrained_g_model_weights_path = "./results/BSRNet_x4/best.pth.tar"
+    pretrained_g_model_weights_path = ""
 
     # Incremental training and migration training
-    resume_d = ""
-    resume_g = ""
+    resume_d_model_weights_path = ""
+    resume_g_model_weights_path = ""
 
     # Total num epochs (1,600,000 iters)
     epochs = 1640
@@ -87,18 +91,18 @@ if mode == "train":
     feature_model_normalize_std = [0.229, 0.224, 0.225]
 
     # Loss function weight
-    pixel_weight = 1.0
+    pixel_weight = [1.0]
     content_weight = [0.1, 0.1, 1.0, 1.0, 1.0]
-    adversarial_weight = 0.1
+    adversarial_weight = [0.1]
 
     # Optimizer parameter
     model_lr = 5e-5
     model_betas = (0.9, 0.999)
-    model_eps = 1e-8
+    model_eps = 1e-4  # Keep no nan
     model_weight_decay = 0.0
 
     # EMA parameter
-    model_ema_decay = 0.99998
+    model_ema_decay = 0.999
 
     # Dynamically adjust the learning rate policy
     lr_scheduler_milestones = [int(epochs * 0.5)]
@@ -106,7 +110,7 @@ if mode == "train":
 
     # How many iterations to print the training result
     train_print_frequency = 100
-    valid_print_frequency = 1
+    test_print_frequency = 1
 
 if mode == "test":
     # Test data address

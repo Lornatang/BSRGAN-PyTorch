@@ -33,7 +33,7 @@ class TrainValidImageDataset(Dataset):
     """Define training/valid dataset loading methods.
 
     Args:
-        image_dir (str): Train/Valid dataset address.
+        gt_image_dir (str): Ground-truth dataset address.
         crop_image_size (int): Crop high resolution image size.
         upscale_factor (int): Image up scale factor.
         mode (str): Data set loading method, the training data set is for data enhancement,
@@ -42,15 +42,16 @@ class TrainValidImageDataset(Dataset):
 
     def __init__(
             self,
-            image_dir: str,
+            gt_image_dir: str,
             crop_image_size: int,
             upscale_factor: int,
             mode: str,
-            degradation_process_parameters_dict: dict
+            degradation_process_parameters_dict: dict,
     ) -> None:
         super(TrainValidImageDataset, self).__init__()
         # Get all image file names in folder
-        self.image_file_names = [os.path.join(image_dir, image_file_name) for image_file_name in os.listdir(image_dir)]
+        self.gt_image_file_names = [os.path.join(gt_image_dir, image_file_name) for image_file_name in
+                                    os.listdir(gt_image_dir)]
         # Specify the high-resolution image size, with equal length and width
         self.crop_image_size = crop_image_size
         # How many times the high-resolution image is the low-resolution image
@@ -58,40 +59,40 @@ class TrainValidImageDataset(Dataset):
         # Load training dataset or test dataset
         self.mode = mode
         # Define degradation process parameters
-        self.parameters = degradation_process_parameters_dict
+        self.degradation_process_parameters_dict = degradation_process_parameters_dict
 
     def __getitem__(self, batch_index: int) -> [dict[str, Tensor], dict[str, Tensor]]:
         # Read a batch of image data
-        gt_image = cv2.imread(self.image_file_names[batch_index]).astype(np.float32) / 255.
+        gt_image = cv2.imread(self.gt_image_file_names[batch_index]).astype(np.float32) / 255.
 
         # Image processing operations
         if self.mode == "Train":
-            gt_image = imgproc.random_crop_np(gt_image, self.crop_image_size)
-            gt_image = imgproc.random_rotate(gt_image, [90, 180, 270])
-            gt_image = imgproc.random_horizontally_flip(gt_image, 0.5)
-            gt_image = imgproc.random_vertically_flip(gt_image, 0.5)
+            gt_crop_image = imgproc.random_crop_np(gt_image, self.crop_image_size)
+            gt_crop_image = imgproc.random_rotate(gt_crop_image, [90, 180, 270])
+            gt_crop_image = imgproc.random_horizontally_flip(gt_crop_image, 0.5)
+            gt_crop_image = imgproc.random_vertically_flip(gt_crop_image, 0.5)
         elif self.mode == "Valid":
-            gt_image = imgproc.center_crop(gt_image, self.crop_image_size)
+            gt_crop_image = imgproc.center_crop(gt_image, self.crop_image_size)
         else:
             raise ValueError("Unsupported data processing model, please use `Train` or `Valid`.")
 
         # BGR convert to RGB
-        gt_image = cv2.cvtColor(gt_image, cv2.COLOR_BGR2RGB)
+        gt_crop_image = cv2.cvtColor(gt_crop_image, cv2.COLOR_BGR2RGB)
 
-        lr_image = imgproc.degradation_process(gt_image,
-                                               self.upscale_factor,
-                                               self.parameters["jpeg_prob"],
-                                               self.parameters["scale2_prob"])
+        lr_crop_image = imgproc.degradation_process(gt_crop_image,
+                                                    self.upscale_factor,
+                                                    self.degradation_process_parameters_dict["jpeg_prob"],
+                                                    self.degradation_process_parameters_dict["scale2_prob"])
 
         # Convert image data into Tensor stream format (PyTorch).
         # Note: The range of input and output is between [0, 1]
-        gt_tensor = imgproc.image_to_tensor(gt_image, False, False)
-        lr_tensor = imgproc.image_to_tensor(lr_image, False, False)
+        gt_tensor = imgproc.image_to_tensor(gt_crop_image, False, False)
+        lr_tensor = imgproc.image_to_tensor(lr_crop_image, False, False)
 
         return {"gt": gt_tensor, "lr": lr_tensor}
 
     def __len__(self) -> int:
-        return len(self.image_file_names)
+        return len(self.gt_image_file_names)
 
 
 class TestImageDataset(Dataset):
