@@ -56,6 +56,7 @@ g_out_channels = 3
 g_channels = 64
 g_growth_channels = 32
 g_num_rrdb = 23
+# Upscale factor
 upscale_factor = 4
 # Current configuration parameter method
 mode = "train"
@@ -117,4 +118,4 @@ if mode == "test":
     lr_dir = "./data/RealSRSet"
     sr_dir = f"./results/{exp_name}"
 
-    g_model_weights_path = "./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar"
+    g_model_weights_path = "./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar"

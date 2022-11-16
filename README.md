@@ -14,9 +14,9 @@ of [Designing a Practical Degradation Model for Deep Blind Image Super-Resolutio
     - [Download weights](#download-weights)
     - [Download datasets](#download-datasets)
     - [How Test and Train](#how-test-and-train)
-        - [Test](#test)
-        - [Train BSRNet model](#train-bsrnet-model)
-        - [Resume train BSRNet model](#resume-train-bsrnet-model)
+        - [Test BSRGAN_x4 model](#test-bsrgan_x4-model)
+        - [Train BSRNet_x4 model](#train-bsrnet_x4-model)
+        - [Resume train BSRNet_x4 model](#resume-train-bsrnet_x4-model)
         - [Train BSRGAN model](#train-bsrgan-model)
         - [Resume train BSRGAN model](#resume-train-bsrgan-model)
     - [Result](#result)
@@ -42,70 +42,78 @@ Please refer to `README.md` in the `data` directory for the method of making a d
 
 Both training and testing only need to modify the `bsrnet_config.py` or `bsrgan_config.py` file.
 
-### Test
+### Test BSRGAN_x4 model
 
-modify the `bsrgan_config.py`
+Modify the `bsrgan_config.py` file.
 
-- line 47: `g_arch_name` change to `bsrgan_x4`.
-- line 54: `upscale_factor` change to `4`.
-- line 56: `mode` change to `test`.
-- line 105: `g_model_weights_path` change to `./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar`.
--
+- line 48: `g_model_arch_name` change to `bsrgan_x4`.
+- line 60: `upscale_factor` change to `4`.
+- line 62: `mode` change to `test`.
+- line 64: `exp_name` change to `BSRGAN_x4-Set5`.
+- line 118: `lr_dir` change to `f"./data/Set5/LRbicx{upscale_factor}"`.
+- line 119: `gt_dir` change to `f"./data/Set5/GTmod12"`.
+- line 121: `g_model_weights_path` change to `./results/pretrained_models/BSRGAN_x4-DIV2K-6d507222.pth.tar`.
 
 ```bash
 python3 test.py
 ```
 
-### Train BSRNet model
+### Train BSRNet_x4 model
 
-modify the `bsrnet_config.py`
+Modify the `bsrnet_config.py` file.
 
-- line 47: `g_arch_name` change to `bsrgan_x4`.
-- line 54: `upscale_factor` change to `4`.
-- line 56: `mode` change to `train`.
-- line 73: `pretrained_g_model_weights_path` change to `./results/pretrained_models/BSRNet_x4-DIV2K-353eb572.pth.tar`.
-
-```bash
-python3 train_bsrnet.py
-```
-
-### Resume train BSRNet model
-
-modify the `bsrnet_config.py`
-
-- line 47: `g_arch_name` change to `bsrgan_x4`.
-- line 54: `upscale_factor` change to `4`.
-- line 56: `mode` change to `train`.
-- line 76: `resume_g` change to `samples/BSRNet_x4/epoch_xxx.pth.tar`.
+- line 48: `g_model_arch_name` change to `bsrgan_x4`.
+- line 60: `upscale_factor` change to `4`.
+- line 62: `mode` change to `train`.
+- line 64: `exp_name` change to `BSRNet_x4-DIV2K`.
 
 ```bash
 python3 train_bsrnet.py
 ```
 
-### Train BSRGAN model
+### Resume train BSRNet_x4 model
 
-modify the `bsrgan_config.py`
+Modify the `bsrnet_config.py` file.
 
-- line 47: `d_arch_name` change to `discriminator`.
-- line 48: `g_arch_name` change to `bsrgan_x4`.
-- line 55: `upscale_factor` change to `4`.
-- line 57: `mode` change to `train`.
-- line 75: `pretrained_g_model_weights_path` change to `./results/BSRNet_x4/best.pth.tar`.
+- line 48: `g_model_arch_name` change to `bsrgan_x4`.
+- line 60: `upscale_factor` change to `4`.
+- line 62: `mode` change to `test`.
+- line 64: `exp_name` change to `BSRNet_x4-DIV2K`.
+- line 74: `resume_g_model_weights_path` change to `./samples/BSRNet_x4-DIV2K/g_epoch_xxx.pth.tar`.
+- line 118: `lr_dir` change to `f"./data/Set5/LRbicx{upscale_factor}"`.
+- line 119: `gt_dir` change to `f"./data/Set5/GTmod12"`.
+
+```bash
+python3 train_bsrnet.py
+```
+
+### Train BSRGAN_x4 model
+
+Modify the `bsrgan_config.py` file.
+
+- line 47: `d_model_arch_name` change to `discriminator_unet`.
+- line 48: `g_model_arch_name` change to `bsrgan_x4`.
+- line 60: `upscale_factor` change to `4`.
+- line 62: `mode` change to `train`.
+- line 64: `exp_name` change to `BSRGAN_x4-DIV2K`.
 
 ```bash
 python3 train_bsrgan.py
 ```
 
-### Resume train BSRGAN model
+### Resume train BSRGAN_x4 model
 
-modify the `bsrgan_config.py`
+Modify the `bsrgan_config.py` file.
 
-- line 47: `d_arch_name` change to `discriminator`.
-- line 48: `g_arch_name` change to `bsrgan_x4`.
-- line 55: `upscale_factor` change to `4`.
-- line 57: `mode` change to `train`.
-- line 78: `resume_d` change to `./results/BSRGAN_x4/d_epoch_xxx.pth.tar`.
-- line 79: `resume_g` change to `./results/BSRGAN_x4/g_epoch_xxx.pth.tar`.
+- line 47: `d_model_arch_name` change to `discriminator_unet`.
+- line 48: `g_model_arch_name` change to `bsrgan_x4`.
+- line 60: `upscale_factor` change to `4`.
+- line 62: `mode` change to `train`.
+- line 64: `exp_name` change to `BSRGAN_x4-DIV2K`.
+- line 83: `resume_d_model_weights_path` change to `./samples/BSRGAN_x4-DIV2K/d_epoch_xxx.pth.tar`.
+- line 84: `resume_g_model_weights_path` change to `./samples/BSRGAN_x4-DIV2K/g_epoch_xxx.pth.tar`.
+- line 118: `lr_dir` change to `f"./data/Set5/LRbicx{upscale_factor}"`.
+- line 119: `gt_dir` change to `f"./data/Set5/GTmod12"`.
 
 ```bash
 python3 train_bsrgan.py
