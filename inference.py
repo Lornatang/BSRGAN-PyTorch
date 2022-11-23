@@ -42,7 +42,7 @@ def build_model(model_arch_name: str, device: torch.device) -> nn.Module:
                                               out_channels=3,
                                               channels=64,
                                               growth_channels=32,
-                                              num_blocks=23)
+                                              num_rrdb=23)
     g_model = g_model.to(device=device)
 
     return g_model
