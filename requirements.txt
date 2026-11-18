@@ -4,5 +4,4 @@ tqdm
 torch
 natsort
 torchvision
-typing
 scipy
